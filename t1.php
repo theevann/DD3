@@ -48,7 +48,7 @@ d3.selection.prototype.empty = function () {
 };
 */
 
-d3_scale_linear = d3.scale.linear;
+var d3_scale_linear = d3.scale.linear;
 d3.scale.linear = function () {
 	var s = d3_scale_linear.apply(this, arguments);
 	
