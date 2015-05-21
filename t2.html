@@ -1,0 +1,93 @@
+
+<html>
+<meta charset="utf-8">
+<style>
+body {
+  font: 11px sans-serif;
+  padding : 0px;
+  margin: 0px;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.dot {
+  stroke: #000;
+}
+
+</style>
+<body>
+
+<script src="http://d3js.org/d3.v3.js"></script>
+<script src="utils.js"></script>
+<script src="api.js"></script>
+<script src="dd3.v0.js"></script>
+
+<script>
+
+var data = dd3.dataPoints();
+var dim = dd3.dataDimensions();
+var xDomain = [dim.xmin, dim.xmax];
+var yDomain = [dim.ymin, dim.ymax];
+
+// setup x 
+var xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]).toLocalLeft(),
+    xAxis = dd3.svg.axis().scale(xScale).orient("bottom");
+
+// setup y
+var yScale = dd3.scale.linear().range([dd3.cave().svgHeight, 0]).toLocalTop(),
+    yAxis = dd3.svg.axis().scale(yScale).orient("left");
+	
+	xScale.domain(xDomain);
+	yScale.domain(yDomain);
+	
+var svg = dd3.select("body").append("svg")
+    .attr("width", dd3.browser().width)
+    .attr("height", dd3.browser().height)
+    .append("g")
+    .attr("transform", "translate(" + dd3.browser().margin.left + "," + dd3.browser().margin.top + ")");
+	
+	//*
+  // x-axis
+	svg.append("g")
+      .attr("class", "x axis")
+      .attr("transform", "translate(" + [0, dd3.cave().svgHeight] + ")")
+      .call(xAxis)
+    .append("text")
+      .attr("class", "label")
+      .attr("x", dd3.cave().svgWidth)
+      .attr("y", -6)
+      .style("text-anchor", "end")
+      .text("X axis");
+//*
+  // y-axis
+  svg.append("g")
+      .attr("class", "y axis")
+	  .attr("transform", "translate(" + [0, 0] + ")")
+      .call(yAxis)
+    .append("text")
+      .attr("class", "label")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 6)
+      .attr("dy", ".71em")
+      .style("text-anchor", "end")
+      .text("Y axis");
+
+  // draw dots
+  svg.selectAll(".dot")
+      .data(data)
+    .enter().append("circle")
+      .attr("class", "dot")
+      .attr("r", 3.5)
+      .attr("cx", function (d) { return xScale(d[0]); })
+      .attr("cy", function (d) { return yScale(d[1]); })
+      .style("fill", function (d) { return "black"; });
+	  
+//*/
+</script>
+</body>
+</html>
