@@ -33,11 +33,10 @@ body {
 	echo "var posW = ".$col.";";
 	echo "var posH = ".$row.";";
 ?>
-// SET HERE OR GOT FROM SERVER ...
 
 </script>
 
-<script src="dd3.js"></script>
+<script src="dd3-t1.js"></script>
 
 <script>
 
@@ -63,7 +62,7 @@ var yScale = d3.scale.linear().range([totalAvailableHeight, 0]),
       .call(xAxis)
     .append("text")
       .attr("class", "label")
-      .attr("x", width)
+      .attr("x", totalAvailableWidth)
       .attr("y", -6)
       .style("text-anchor", "end")
       .text("X axis");
