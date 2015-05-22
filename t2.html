@@ -29,10 +29,9 @@ body {
 
 <script>
 
-var data = dd3.getData();
 var dim = dd3.dataDimensions();
-var xDomain = [dim.xmin, dim.xmax];
-var yDomain = [dim.ymin, dim.ymax];
+var xDomain = [dim.xmin - 1, dim.xmax + 1];
+var yDomain = [dim.ymin - 1, dim.ymax + 1];
 
 // setup x 
 var xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]).toLocalLeft(),
@@ -44,6 +43,9 @@ var yScale = dd3.scale.linear().range([dd3.cave().svgHeight, 0]).toLocalTop(),
 	
 	xScale.domain(xDomain);
 	yScale.domain(yDomain);
+	
+var data = dd3.getData(xScale, yScale);
+
 	
 var svg = dd3.select("body").append("svg")
     .attr("width", dd3.browser().width)

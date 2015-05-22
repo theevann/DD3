@@ -75,15 +75,55 @@ var dd3 = (function () {
 		};
 		
 		// For now we get data just for a basic static scatterplot
-		init.getData = function () {
+		init.getData = function (scaleX, scaleY) {
+			
 			var d = data.dataDimensions;
 			var p = _dd3.position.svg.toGlobal;
-			var limit = {};
+			var domainX = scaleX ? scaleX.domain() : [d.xmin, d.xmax],
+				rangeX  = scaleX ? scaleX.range()  : [0, cave.svgWidth],
+				domainY = scaleY ? scaleY.domain() : [d.ymin, d.ymax],
+				rangeY  = scaleY ? scaleY.range()  : [cave.svgHeight, 0];
 			
-			limit.xmin = d.xmin + p.left(0) / cave.svgWidth * (d.xmax - d.xmin);
-			limit.xmax = d.xmin + p.left(browser.svgWidth) / cave.svgWidth * (d.xmax - d.xmin);
-			limit.ymin = d.ymin + (1 - p.top(browser.svgHeight) / cave.svgHeight) * (d.ymax - d.ymin);
-			limit.ymax = d.ymin + (1 - p.top(0) / cave.svgHeight) * (d.ymax - d.ymin);
+			var invX = 1, invY = 1;
+			
+			if (domainX[0] > domainX[1]) {
+				domainX.reverse();
+				invX *= -1;
+			}
+			if (rangeX[0] > rangeX[1]) {
+				rangeX.reverse();
+				invX *= -1;
+			}
+			if (domainY[0] > domainY[1]) {
+				domainY.reverse();
+				invY *= -1;
+			}
+			if (rangeY[0] > rangeY[1]) {
+				rangeY.reverse();
+				invY *= -1;
+			}
+			
+			var limit = {};
+			var minX = Math.max(p.left(0), rangeX[0]),
+				maxX = Math.min(p.left(browser.svgWidth), rangeX[1]),
+				minY = Math.max(p.top(0), rangeY[0]),
+				maxY = Math.min(p.top(browser.svgHeight), rangeY[1]);
+			
+			if (invX > 0) {
+				limit.xmin = domainX[0] + (minX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
+				limit.xmax = domainX[0] + (maxX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
+			} else {
+				limit.xmin = domainX[0] + (rangeX[1] - maxX) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
+				limit.xmax = domainX[0] + (rangeX[1] - minX) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);				
+			}
+			
+			if (invY > 0) {
+				limit.ymin = domainY[0] + (minY - rangeY[0]) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
+				limit.ymax = domainY[0] + (maxY - rangeY[0]) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
+			} else {
+				limit.ymin = domainY[0] + (rangeY[1] - maxY) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
+				limit.ymax = domainY[0] + (rangeY[1] - minY) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);				
+			}
 			
 			data.dataPoints = api.getData(limit);
 			
