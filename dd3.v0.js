@@ -37,7 +37,12 @@ var dd3 = (function () {
 		
 		// Get configuration data
 		
-		var getConfigurationData = function () {
+		var init = function () {
+			init.getConfigurationData();
+			init.getDataDimensions();
+		};
+		
+		init.getConfigurationData = function () {
 			browser.column = +getUrlVar('column');
 			browser.row    = +getUrlVar('row');
 			browser.number = +getUrlVar('number');
@@ -62,48 +67,52 @@ var dd3 = (function () {
 			browser.svgWidth = Math.max(browser.width - browser.margin.left - browser.margin.right, 0);
 			browser.svgHeight = Math.max(browser.height - browser.margin.top - browser.margin.bottom, 0);
 			
-			
-			extend(_dd3.position.svg, {
-				toLeft : browser.column * browser.width - cave.margin.left + browser.margin.left,
-				toTop : browser.row * browser.height - cave.margin.top + browser.margin.top
-			});
-			
-			extend(_dd3.position.browser, {
-				toLeft : browser.column * browser.width,
-				toTop : browser.row * browser.height
-			});
-			
+		};
+		
+		init.getDataDimensions = function () {
+			data.dataDimensions = api.getDataDimensions();
+			return data.dataDimensions;
 		};
 		
 		// For now we get data just for a basic static scatterplot
-		var getData = function () {
-			var d = api.getDataDimensions();
-			var limit = {};
+		init.getData = function () {
+			var d = data.dataDimensions;
 			var p = _dd3.position.svg.toGlobal;
+			var limit = {};
 			
 			limit.xmin = d.xmin + p.left(0) / cave.svgWidth * (d.xmax - d.xmin);
 			limit.xmax = d.xmin + p.left(browser.svgWidth) / cave.svgWidth * (d.xmax - d.xmin);
 			limit.ymin = d.ymin + (1 - p.top(browser.svgHeight) / cave.svgHeight) * (d.ymax - d.ymin);
 			limit.ymax = d.ymin + (1 - p.top(0) / cave.svgHeight) * (d.ymax - d.ymin);
 			
-			data.dataDimensions = d;
 			data.dataPoints = api.getData(limit);
+			
+			return data.dataPoints;
 		};
 		
-		return (function () {
-			getConfigurationData();
-			getData();
-		});
+		return init;
 			
 	})();
-		
+	
+	/**
+	 * Initialize
+	 */
+	
+	initializer();
+	
 	/**
 	 * dd3.position
 	 */
 	
 	_dd3.position = {
-		svg : {},
-		browser : {}
+		svg : {
+			toLeft : browser.column * browser.width - cave.margin.left + browser.margin.left,
+			toTop : browser.row * browser.height - cave.margin.top + browser.margin.top
+		},
+		browser : {
+			toLeft : browser.column * browser.width,
+			toTop : browser.row * browser.height
+		}
 	};
 	
 	_dd3.position.svg.toLocal = {
@@ -127,43 +136,51 @@ var dd3 = (function () {
 	};
 	
 	/**
+	 * Hook helper functions for d3
+	 */
+	
+	var _dd3_hook = function (hook, newObj) {
+		var a = function () {
+			if (!arguments.length) return hook();
+			hook.apply(this, arguments);
+			return newObj;
+		};
+		return a;
+	}; 
+	
+	var _dd3_hookObject = function (oldObj, newObj) {
+		for (var func in oldObj) {
+			if (oldObj.hasOwnProperty(func)) {
+				newObj[func] = _dd3_hook(oldObj[func], newObj);
+			} 
+		}
+	};
+	
+	
+	/**
 	 * dd3.scale
-	 *
-	 *  TO DO : Create hook as for axis !
 	 */
 	 
 	_dd3.scale = Object.create(d3.scale);
 	
-	var _dd3_scale_toLocalLeft = function (scale)  {
+	var _dd3_scale_toLocal = function (side, d3_scale)  {
 		var a = function () {
 			
-			var b = function (x) {
-				return _dd3.position.svg.toLocal.left(scale(x));
+			var dd3_scale = function (x) {
+				return _dd3.position.svg.toLocal[side](d3_scale(x));
 			};
-			b.__proto__ = scale;
 			
-			return b;
-		};
-		return  a;
-	};
-	
-	var _dd3_scale_toLocalTop = function (scale)  {
-		var a = function () {
+			_dd3_hookObject(d3_scale, dd3_scale);
 			
-			var b = function (x) {
-				return _dd3.position.svg.toLocal.top(scale(x));
-			};
-			b.__proto__ = scale;
-			
-			return b;
+			return dd3_scale;
 		};
 		return  a;
 	};
 	
 	_dd3.scale.linear = function () {
 		var scale = d3.scale.linear();
-		scale.toLocalLeft = _dd3_scale_toLocalLeft(scale);
-		scale.toLocalTop = _dd3_scale_toLocalTop(scale);
+		scale.toLocalLeft = _dd3_scale_toLocal('left', scale);
+		scale.toLocalTop = _dd3_scale_toLocal('top', scale);
 		return scale;
 	};
 	
@@ -171,20 +188,12 @@ var dd3 = (function () {
 	 * dd3.svg.axis
 	 */
 	 
-	var _dd3_svg_axis_hook = function (hook, axis) {
-		var a = function (scale) {
-			if (!arguments.length) return hook();
-			hook(scale);
-			return axis;
-		};
-		return a;
-	}; 
-	 
 	_dd3.svg = Object.create(d3.svg);
+	
 	_dd3.svg.axis = function () {
-		var hook = d3.svg.axis();
+		var d3_axis = d3.svg.axis();
 		
-		var axis = function (g) {
+		var dd3_axis = function (g) {
 			g.each(function() {
 				var g = d3.select(this);
 				var t = d3.transform(g.attr("transform"));
@@ -195,41 +204,17 @@ var dd3 = (function () {
 					
 				g.attr("transform", "translate(" + [left, top] + ") rotate(" + rotate + ") scale(" + scale + ")")
 			});
-			return hook(g);
+			return d3_axis(g);
 		};
 
-		for (var func in hook) {
-			if (hook.hasOwnProperty(func)) {
-				axis[func] = _dd3_svg_axis_hook(hook[func], axis);
-			} 
-		}
+		_dd3_hookObject(d3_axis, dd3_axis);
 		
-		/*
-		axis.scale         = _dd3_svg_axis_hook(hook.scale, axis);
-		axis.orient        = _dd3_svg_axis_hook(hook.orient, axis);
-		axis.ticks         = _dd3_svg_axis_hook(hook.ticks, axis);
-		axis.tickValues    = _dd3_svg_axis_hook(hook.tickValues, axis);
-		axis.tickFormat    = _dd3_svg_axis_hook(hook.tickFormat, axis);
-		axis.tickSize      = _dd3_svg_axis_hook(hook.tickSize, axis);
-		axis.innerTickSize = _dd3_svg_axis_hook(hook.innerTickSize, axis);
-		axis.outerTickSize = _dd3_svg_axis_hook(hook.outerTickSize, axis);
-		axis.tickPadding   = _dd3_svg_axis_hook(hook.tickPadding, axis);
-		axis.tickSubdivide    = _dd3_svg_axis_hook(hook.tickSubdivide, axis);
-		*/
-		
-		return axis;
+		return dd3_axis;
 	};
 	
 	
-	
 	/**
-	* Initialize
-	*/
-	
-	initializer();
-	
-	/**
-	 * Getter (Has to be set after initialization)
+	 * Getter
 	 */
 	
 	_dd3.dataPoints = function () { return data.dataPoints.slice(); };
@@ -238,7 +223,9 @@ var dd3 = (function () {
 	
 	_dd3.cave = function () { return extend({}, cave);};
 	
-	_dd3.browser =function () { return extend({}, browser);};
+	_dd3.browser = function () { return extend({}, browser);};
 	
+	_dd3.getData = initializer.getData;
+		
 	return _dd3;
 })();
