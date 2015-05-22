@@ -1,6 +1,7 @@
 var api = {};
 
-api.dataPoints = d3.range(0,25,0.1).map(function(d) {return [d, Math.cos(d)*3];});
+api.dataPoints = d3.range(0, 26, 0.1).map(function(d) {return [d, Math.cos(d)*3];});
+//api.dataPoints = d3.range(-10,15,0.2).map(function(d) {return [d, d*d];});
 
 api.getConf;
 

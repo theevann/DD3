@@ -79,10 +79,10 @@ var dd3 = (function () {
 			
 			var d = data.dataDimensions;
 			var p = _dd3.position.svg.toGlobal;
-			var domainX = scaleX ? scaleX.domain() : [d.xmin, d.xmax],
-				rangeX  = scaleX ? scaleX.range()  : [0, cave.svgWidth],
-				domainY = scaleY ? scaleY.domain() : [d.ymin, d.ymax],
-				rangeY  = scaleY ? scaleY.range()  : [cave.svgHeight, 0];
+			var domainX = scaleX ? scaleX.domain().slice() : [d.xmin, d.xmax],
+				rangeX  = scaleX ? scaleX.range().slice()  : [0, cave.svgWidth],
+				domainY = scaleY ? scaleY.domain().slice() : [d.ymin, d.ymax],
+				rangeY  = scaleY ? scaleY.range().slice()  : [cave.svgHeight, 0];
 			
 			var invX = 1, invY = 1;
 			
@@ -179,19 +179,34 @@ var dd3 = (function () {
 	 * Hook helper functions for d3
 	 */
 	
-	var _dd3_hook = function (hook, newObj) {
+	var _dd3_hook_d3 = function (hook, newObj) {
 		var a = function () {
 			if (!arguments.length) return hook();
 			hook.apply(this, arguments);
 			return newObj;
 		};
 		return a;
-	}; 
+	};
+	
+	var _dd3_hook_basic = function (hook) {
+		var a = function () {
+			return hook.apply(this, arguments);
+		}; 
+		return a;
+	};
+	
+	var _dd3_hookD3Object = function (oldObj, newObj) {
+		for (var func in oldObj) {
+			if (oldObj.hasOwnProperty(func)) {
+				newObj[func] = _dd3_hook_d3(oldObj[func], newObj);
+			} 
+		}
+	};
 	
 	var _dd3_hookObject = function (oldObj, newObj) {
 		for (var func in oldObj) {
 			if (oldObj.hasOwnProperty(func)) {
-				newObj[func] = _dd3_hook(oldObj[func], newObj);
+				newObj[func] = _dd3_hook_basic(oldObj[func]);
 			} 
 		}
 	};
@@ -210,7 +225,12 @@ var dd3 = (function () {
 				return _dd3.position.svg.toLocal[side](d3_scale(x));
 			};
 			
-			_dd3_hookObject(d3_scale, dd3_scale);
+			_dd3_hookD3Object(d3_scale, dd3_scale);
+			dd3_scale.ticks = _dd3_hook_basic(d3_scale.ticks);
+			dd3_scale.tickFormat = _dd3_hook_basic(d3_scale.tickFormat);
+			dd3_scale.invert = function (x) {
+				return d3_scale.invert(_dd3.position.svg.toGlobal[side](x));
+			}; 
 			
 			return dd3_scale;
 		};
@@ -247,7 +267,7 @@ var dd3 = (function () {
 			return d3_axis(g);
 		};
 
-		_dd3_hookObject(d3_axis, dd3_axis);
+		_dd3_hookD3Object(d3_axis, dd3_axis);
 		
 		return dd3_axis;
 	};

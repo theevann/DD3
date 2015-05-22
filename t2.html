@@ -30,8 +30,9 @@ body {
 <script>
 
 var dim = dd3.dataDimensions();
-var xDomain = [dim.xmin - 1, dim.xmax + 1];
-var yDomain = [dim.ymin - 1, dim.ymax + 1];
+var extent = dim.xmax - dim.xmin, coef = 0., c = 1;
+var xDomain = [dim.xmin - coef * extent - c, dim.xmax + coef * extent + c];
+var yDomain = [dim.ymin - coef * extent - c, dim.ymax + coef * extent + c];
 
 // setup x 
 var xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]).toLocalLeft(),
@@ -84,7 +85,7 @@ var svg = dd3.select("body").append("svg")
       .data(data)
     .enter().append("circle")
       .attr("class", "dot")
-      .attr("r", 3.5)
+      .attr("r", 2.5)
       .attr("cx", function (d) { return xScale(d[0]); })
       .attr("cy", function (d) { return yScale(d[1]); })
       .style("fill", function (d) { return "black"; });
