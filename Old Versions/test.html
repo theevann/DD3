@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>HTML Target Frames</title>
+</head>
+   <body>
+   </body>
+<script src="http://cdn.peerjs.com/0.3/peer.min.js"></script>
+<script>
+	function getUrlVar(variable) {
+	    var query = window.location.search.substring(1);
+	    var vars = query.split("&");
+	    for (var i = 0; i < vars.length; i++) {
+	        var pair = vars[i].split("=");
+	        if (pair[0] === variable) { return pair[1]; }
+	    }
+	    return (false);
+	}
+
+	var peer = new Peer(getUrlVar("name"), {key: 'lwjd5qra8257b9'});
+	peer.on('open', function(id) {	
+	  console.log('My peer ID is: ' + id);
+	});
+
+	peer.on('connection', function(c) {	
+	  console.log('Peer ID : ' + c.peer + ' connected with me !');
+	});
+
+	peer.connect(getUrlVar('to')).on('open', function(id) {	
+	  console.log('Connected to Peer ID : ' + id);
+	});
+
+</script>
+</html>
