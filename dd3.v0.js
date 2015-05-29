@@ -18,8 +18,8 @@ var dd3 = (function () {
 	
 	var browser = {
 		number : null, // Used as id for peer.js
-		width : 1280 / 4, // To be set automatically
-		height : 720 / 2, // To be set automatically
+		width : 1280 / 4, // To be set automatically : (window).width();
+		height : 720 / 2, // To be set automatically : $(window).height();
 		margin : {
 			top : 0,
 			bottom : 0,

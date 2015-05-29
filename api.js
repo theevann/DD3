@@ -1,22 +1,23 @@
 var api = {};
+var uid = 0;
 
-api.dataPoints = d3.range(0, 26, 0.1).map(function(d) {return [d, Math.cos(d)*3];});
+api.dataPoints = d3.range(0, 26, 0.1).map(function(d) {return {id : uid++, x : d, y : Math.cos(d)*3};});
 //api.dataPoints = d3.range(-10,15,0.2).map(function(d) {return [d, d*d];});
 
 api.getConf;
 
 api.getDataDimensions = function () {
 	var dimensions = {};
-	dimensions.xmin = d3.min(api.dataPoints, d(0));
-	dimensions.xmax = d3.max(api.dataPoints, d(0));
-	dimensions.ymin = d3.min(api.dataPoints, d(1));
-	dimensions.ymax = d3.max(api.dataPoints, d(1));
+	dimensions.xmin = d3.min(api.dataPoints, d('x'));
+	dimensions.xmax = d3.max(api.dataPoints, d('x'));
+	dimensions.ymin = d3.min(api.dataPoints, d('y'));
+	dimensions.ymax = d3.max(api.dataPoints, d('y'));
 	return dimensions;
 };
 
 //Not perfect ... need the case x = xmax
 api.getData = function (limit) {
-	var filteredData = api.dataPoints.filter(function (d) { return d[0] >= limit.xmin && d[0] < limit.xmax && d[1] >= limit.ymin && d[1] < limit.ymax;})
+	var filteredData = api.dataPoints.filter(function (d) { return d['x'] >= limit.xmin && d['x'] < limit.xmax && d['y'] >= limit.ymin && d['y'] < limit.ymax;})
 	return filteredData;
 };
 
