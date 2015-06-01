@@ -3,7 +3,40 @@ var dd3 = (function () {
 	"use strict";
 	var _dd3 = Object.create(d3);
 	
+	
+	var state = (function () {
+		var _state = 'loading';
+		return function (newState) {
+			if (arguments.length == 0) return _state;
+			
+			if (newState === 'connecting') {
+				_state = 'connecting';
+			} else if (newState === 'ready') {
+				_state = 'ready';
+				log('DD3 is ready !', 1);
+			} else if (newState === 'fatal') {
+				_state = 'fatal';
+			} else {
+				return false;
+			}
+			
+			callbackListener[newState].forEach(function (f) { f(); });
+			return true;
+		};
+	})();
+
+	var callbackListener = {
+		connecting : [],
+		ready : [],
+		fatal : []
+	};
+	
 	var data = {};
+	
+	var peer = {
+		connections : [],
+		ready : -1
+	};
 	
 	var cave = {
 		width : 0, // Got from server
@@ -38,8 +71,15 @@ var dd3 = (function () {
 		// Get configuration data
 		
 		var init = function () {
-			init.getConfigurationData();
+			if(!init.checkLibraries()) {
+				state("fatal")
+				return;
+			}
+			init.getConfigurationData(); // Doit être bloquant !
 			init.getDataDimensions();
+			init.connectPeers();
+			
+			state('connecting');
 		};
 		
 		init.getConfigurationData = function () {
@@ -50,6 +90,9 @@ var dd3 = (function () {
 			var conf = api.getConf();
 			cave.rows = conf.rows;
 			cave.columns = conf.columns;
+			peer.session = conf.session;
+			peer.ready = cave.rows * cave.columns - 1;
+			peer.connections = d3.range(0, cave.rows).map(function () { return []; });
 			
 			cave.width = cave.columns * browser.width;
 			cave.height = cave.rows * browser.height;
@@ -126,13 +169,112 @@ var dd3 = (function () {
 			}
 			
 			data.dataPoints = api.getData(limit);
-			
+			 
 			return data.dataPoints;
 		};
 		
-		return init;
+		init.checkLibraries = function () {
+			if (typeof d3 === "undefined") {
+				log("Initialization failed : d3.js was not found", 4);
+				return false;
+			} else if (typeof Peer === "undefined") {
+				log("Initialization failed : peer.js was not found", 4);
+				return false;
+			}
 			
-	})();
+			log("Initialization ok : d3.js and peer.js loaded", 1);
+			return true;
+		};
+		
+		init.connectPeers = function () {
+			var id = peer.session + "r" + browser.row + "c" + browser.column;
+			peer.id = id;
+			
+			var p = new Peer(
+					id,
+					{
+					key : 'x7fwx2kavpy6tj4i'
+				});
+			
+			p.on("error", function (e) {
+					log(e, 3);
+				});
+			
+			var connect = function (c, targetRow, targetColumn, out) {
+				var previous = peer.connections[targetRow][targetColumn],
+					check = (targetRow > browser.row || (targetRow === browser.row && targetColumn > browser.column)) ^ out; // Priority to browser with higher row
+				
+				if (previous && !check){
+					log("No changes !", 0);
+					return;
+				}
+				
+				if (previous)
+					previous.close();
+				else
+					(peer.ready -= 1) == 0 ? state('ready') : "";
+				
+				peer.connections[targetRow][targetColumn] = c;
+				c.on("data", function (d) {log("Data : " + d);});
+				c.on("close", function () {
+					log("Connection " + (out ? "out" : "in") + " closed with peer " + c.peer, 0);
+					// If it is not a close due to double initialization, (or it is but update hasn't been done yet)
+					// Then remove the connection from the array
+					if (peer.connections[targetRow][targetColumn] == c)
+						peer.connections[targetRow][targetColumn] = false;
+				});
+				c.on("error", function (e) {
+					log(e, 3);
+				});
+			};
+			
+			var launchConnections = function () {
+				for (var i = 0 ; i < cave.rows ; i++) {
+					for (var j = 0 ; j < cave.columns ; j++) {
+						if (!peer.connections[i][j] && (i != browser.row || j != browser.column)) {
+							var connTemp = p.connect(peer.session + "r" + i + "c" + j);
+							
+							connTemp.on("open", (function (i,j, c) {
+								return function () {
+									log("(initiated) Connected to peer " + c.peer, 0);		
+									connect(c, i, j, true);								
+								}
+							}) (i,j, connTemp));
+							
+						}
+					}
+				}
+			};
+			
+			p.on('open', function (id) {
+				log('Connected to peer server', 1);
+				log('Browser Peer ID : ' + id, 1);
+				
+				p.on('connection', function (c) {
+					log("(incoming) Connected to peer " + c.peer, 0)
+					
+					var pos = new RegExp(peer.session + "r(\\d+)c(\\d+)").exec(c.peer);
+					connect(c, +pos[1], +pos[2], false);
+				});
+				
+				// Prevent from launching all connections if some browsers have already sent their request (reduce traffic) :
+				// Give time to the 'on' connection handling function to handle already incoming connections
+				setTimeout(launchConnections, 2000);
+				
+			});
+			
+			window.onunload = window.onbeforeunload = function(e) {
+			  if (!!peer.peer && !peer.peer.destroyed) {
+				peer.peer.destroy();
+			  }
+			};
+			
+			peer.peer = p;
+		};
+
+		return init;
+
+		})();
 	
 	/**
 	 * Initialize
@@ -174,7 +316,7 @@ var dd3 = (function () {
 		left : function (left) { return left + _dd3.position.browser.toLeft; },
 		top : function (top) { return top + _dd3.position.browser.toTop; }
 	};
-	
+		
 	/**
 	 * Hook helper functions for d3
 	 */
@@ -258,11 +400,11 @@ var dd3 = (function () {
 				var g = d3.select(this);
 				var t = d3.transform(g.attr("transform"));
 				var left = _dd3.position.svg.toLocal.left(t.translate[0]),
-				    top = _dd3.position.svg.toLocal.top(t.translate[1]),
+					top = _dd3.position.svg.toLocal.top(t.translate[1]),
 					rotate = t.rotate,
 					scale = t.scale;
 					
-				g.attr("transform", "translate(" + [left, top] + ") rotate(" + rotate + ") scale(" + scale + ")")
+				g.attr("transform", "translate(" + [left, top] + ") rotate(" + rotate + ") scale(" + scale + ")");
 			});
 			return d3_axis(g);
 		};
@@ -270,6 +412,18 @@ var dd3 = (function () {
 		_dd3_hookD3Object(d3_axis, dd3_axis);
 		
 		return dd3_axis;
+	};
+	
+	/**
+	*
+	*/
+	
+	_dd3.on = function (p, f) {
+		if (typeof callbackListener[p] !== "undefined") {
+			peer.callback[p].push(f);
+			return true;
+		}
+		return false;
 	};
 	
 	
@@ -281,11 +435,15 @@ var dd3 = (function () {
 	
 	_dd3.dataDimensions = function () { return extend({}, data.dataDimensions); };
 	
+	_dd3.peers = function () { return extend({}, peer); };
+	
 	_dd3.cave = function () { return extend({}, cave);};
 	
 	_dd3.browser = function () { return extend({}, browser);};
 	
 	_dd3.getData = initializer.getData;
+	
+	_dd3.state = function () { return state(); };
 		
-	return _dd3;
+	return _dd3.state() == 'connecting' ? _dd3 : {};
 })();

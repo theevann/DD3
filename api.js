@@ -32,5 +32,8 @@ api.getConf = function () {
 			right : 60
 	};
 	
+	//Later session has to be unique for every session
+	c.session = 3194458;//~~(Math.random()*90000 + 10000);
+	
 	return c;
 };

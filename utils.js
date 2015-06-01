@@ -27,3 +27,16 @@ function extend (base, extension) {
   		base[k] = extension[k]
   return base;
 }
+
+function log (message, sev) {
+	var sevMessage = ["Debug", "Info", "Warning", "Error", "Critical"];
+	var consoleFunction = ["debug", "log", "warn", "warn", "error"];
+	
+	sev = clamp(sev || 0, 0, 4);
+	if (log.sev <= sev) {
+		console[consoleFunction[sev]]("(" + sevMessage[sev] + ")  " + message);
+	}
+}
+
+log.sev = 0;
+
