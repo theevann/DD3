@@ -31,6 +31,7 @@ function extend (base, extension) {
 function log (message, sev) {
 	var sevMessage = ["Debug", "Info", "Warning", "Error", "Critical"];
 	var consoleFunction = ["debug", "log", "warn", "warn", "error"];
+	log.sev = typeof log.sev === "undefined" ? 0 : log.sev;
 	
 	sev = clamp(sev || 0, 0, 4);
 	if (log.sev <= sev) {
@@ -38,5 +39,23 @@ function log (message, sev) {
 	}
 }
 
-log.sev = 0;
 
+function getFullPath (el) {
+
+	var path = [];
+	var actual = "";
+	
+	do {
+		actual = el.nodeName;
+		
+		if (el.id !== "")
+			actual += "#" + el.id;
+		
+		if (!!el.classList.length)
+			actual += "." + [].join.call(el.classList, ".");
+		
+		path.unshift(actual);
+	} while ((el.nodeName.toLowerCase() != 'html') && (el = el.parentNode));
+
+	return path.join(" ");
+}

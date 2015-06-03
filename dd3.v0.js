@@ -190,15 +190,19 @@ var dd3 = (function () {
 			var id = peer.session + "r" + browser.row + "c" + browser.column;
 			peer.id = id;
 			
-			var p = new Peer(
-					id,
-					{
-					key : 'x7fwx2kavpy6tj4i'
-				});
+			var p = new Peer(id,{key : 'q35ylav1jljo47vi'});
+			//var p = new Peer(id,{key : 'x7fwx2kavpy6tj4i'});
 			
 			p.on("error", function (e) {
-					log(e, 3);
-				});
+				var sev;
+				if (e.type === "network" || e.type === "unavailable-id") {
+					log("[Peer] " + e, 4);
+					state("fatal");
+				} else {
+					log("[Peer] " + e, 3);
+				}
+					
+			});
 			
 			var connect = function (c, targetRow, targetColumn, out) {
 				var previous = peer.connections[targetRow][targetColumn],
@@ -215,7 +219,8 @@ var dd3 = (function () {
 					(peer.ready -= 1) == 0 ? state('ready') : "";
 				
 				peer.connections[targetRow][targetColumn] = c;
-				c.on("data", function (d) {log("Data : " + d);});
+				
+				c.on("data", dataReceiver);
 				c.on("close", function () {
 					log("Connection " + (out ? "out" : "in") + " closed with peer " + c.peer, 0);
 					// If it is not a close due to double initialization, (or it is but update hasn't been done yet)
@@ -224,11 +229,12 @@ var dd3 = (function () {
 						peer.connections[targetRow][targetColumn] = false;
 				});
 				c.on("error", function (e) {
-					log(e, 3);
+					log("[Connection] " + e, 3);
 				});
 			};
 			
 			var launchConnections = function () {
+				log('Launching Connections');
 				for (var i = 0 ; i < cave.rows ; i++) {
 					for (var j = 0 ; j < cave.columns ; j++) {
 						if (!peer.connections[i][j] && (i != browser.row || j != browser.column)) {
@@ -246,6 +252,7 @@ var dd3 = (function () {
 				}
 			};
 			
+			
 			p.on('open', function (id) {
 				log('Connected to peer server', 1);
 				log('Browser Peer ID : ' + id, 1);
@@ -259,7 +266,7 @@ var dd3 = (function () {
 				
 				// Prevent from launching all connections if some browsers have already sent their request (reduce traffic) :
 				// Give time to the 'on' connection handling function to handle already incoming connections
-				setTimeout(launchConnections, 2000);
+				setTimeout(launchConnections, 5000 + 1000 * browser.row);
 				
 			});
 			
@@ -274,13 +281,44 @@ var dd3 = (function () {
 
 		return init;
 
-		})();
+	})();
+	
+	
+	var send = function () {
+					
+	};
 	
 	/**
 	 * Initialize
 	 */
 	
 	initializer();
+	
+	/**
+	 * dataReceiver
+	 * dataHandler
+	 */
+	 
+	var plotter = function (data) {
+		
+		if (data.type == 'point') {
+			d3.select("svg")
+				.append("circle")
+				.attr(data.attr);
+		}
+	
+	};
+
+	 
+	var dataReceiver = function (data) {
+		
+		if (data.type == point) {
+			plotter(data);
+		}
+		
+	};
+	
+	
 	
 	/**
 	 * dd3.position
@@ -353,7 +391,6 @@ var dd3 = (function () {
 		}
 	};
 	
-	
 	/**
 	 * dd3.scale
 	 */
@@ -413,6 +450,47 @@ var dd3 = (function () {
 		
 		return dd3_axis;
 	};
+	
+	/**
+	* dd3.selection
+	*/
+	/*
+	_dd3.selection = function () {
+		return d3.selection.apply(this, arguments);
+	};
+	
+	_dd3.selection.prototype = Object.create(d3.selection.prototype);
+	
+	_dd3.select = function () {
+		var selected = d3.select.apply(this,arguments);
+		selected.__proto__ = _dd3.selection.prototype;
+		return selected;
+	};
+	
+	_dd3.selectAll = function () {
+		var selected = d3.selectAll.apply(this,arguments);
+		selected.__proto__ = _dd3.selection.prototype;
+		return selected;
+	};
+	
+	//Now we can change any function used with selections & even add some
+	
+	_dd3.selection.prototype.select = function () {
+		var selected = d3.selection.prototype.select.apply(this, arguments);
+		selected.__proto__ = _dd3.selection.prototype;
+		return selected;
+	};
+	
+	_dd3.selection.prototype.selectAll = function () {
+		var selected = d3.selection.prototype.selectAll.apply(this, arguments);
+		selected.__proto__ = _dd3.selection.prototype;
+		return selected;
+	};
+	
+	_dd3.selection.prototype.send = function () {
+		log("Sending ...");
+		return this;
+	};*/
 	
 	/**
 	*
