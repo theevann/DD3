@@ -1,0 +1,104 @@
+﻿
+<html>
+<meta charset="utf-8">
+<style>
+body {
+  font: 11px sans-serif;
+  padding : 0px;
+  margin: 0px;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.dot {
+  stroke: #000;
+}
+
+</style>
+<body>
+
+    <script src="Scripts/d3.js"></script>
+    <script src="Scripts/peer.js"></script>
+    <script src="Scripts/jquery-1.10.2.min.js"></script>
+    <script src="Scripts/jquery.signalR-2.2.0.min.js"></script>
+    <script src="signalr/hubs"></script>
+
+    <script src="Scripts/utils.js"></script>
+    <script src="Scripts/api.js"></script>
+    <script src="Scripts/dd3.v0.js"></script>
+
+    <script>
+
+    dd3.on('ready', function () {
+	    var dim = dd3.dataDimensions();
+	    var extent = dim.xmax - dim.xmin, coef = 0., c = 1;
+	    var xDomain = [dim.xmin - coef * extent - c, dim.xmax + coef * extent + c];
+	    var yDomain = [dim.ymin - coef * extent - c, dim.ymax + coef * extent + c];
+
+	    // setup x 
+	    var xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]).toLocalLeft(),
+		    xAxis = dd3.svg.axis().scale(xScale).orient("bottom");
+
+	    // setup y
+	    var yScale = dd3.scale.linear().range([dd3.cave().svgHeight, 0]).toLocalTop(),
+		    yAxis = dd3.svg.axis().scale(yScale).orient("left");
+
+	    xScale.domain(xDomain);
+	    yScale.domain(yDomain);
+
+	    var data = dd3.getData(xScale, yScale);
+
+
+	    var svg = dd3.select("body").append("svg")
+		    .attr("width", dd3.browser().width)
+		    .attr("height", dd3.browser().height)
+		    .append("g")
+		    .attr("transform", "translate(" + dd3.browser().margin.left + "," + dd3.browser().margin.top + ")");
+
+	    //*
+	    // x-axis
+	    svg.append("g")
+	      .attr("class", "x axis")
+	      .attr("transform", "translate(" + [0, dd3.cave().svgHeight] + ")")
+	      .call(xAxis)
+	    .append("text")
+	      .attr("class", "label")
+	      .attr("x", dd3.cave().svgWidth)
+	      .attr("y", -6)
+	      .style("text-anchor", "end")
+	      .text("X axis");
+	    //*
+	    // y-axis
+	    svg.append("g")
+	      .attr("class", "y axis")
+	      .attr("transform", "translate(" + [0, 0] + ")")
+	      .call(yAxis)
+	    .append("text")
+	      .attr("class", "label")
+	      .attr("transform", "rotate(-90)")
+	      .attr("y", 6)
+	      .attr("dy", ".71em")
+	      .style("text-anchor", "end")
+	      .text("Y axis");
+
+	    // draw dots
+	    svg.selectAll(".dot")
+	      .data(data)
+	    .enter().append("circle")
+	      .attr("class", "dot")
+	      .attr("r", 2.5)
+	      .attr("cx", function (d) { return xScale(d['x']); })
+	      .attr("cy", function (d) { return yScale(d['y']); })
+	      .style("fill", function (d,i) { return "black"; });
+	      //.send();
+	  
+	    //*/
+    });
+    </script>
+</body>
+</html>
