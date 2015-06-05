@@ -89,13 +89,15 @@ body {
 	    // draw dots
 	    svg.selectAll(".dot")
 	      .data(data)
-	    .enter().append("circle")
+	    .enter()
+          .append("g")
+          .append("circle")
 	      .attr("class", "dot")
 	      .attr("r", 2.5)
 	      .attr("cx", function (d) { return xScale(d['x']); })
 	      .attr("cy", function (d) { return yScale(d['y']); })
-	      .style("fill", function (d,i) { return "black"; });
-	      //.send();
+	      .style("fill", function (d, i) { return "black"; });
+	     // .send();
 	  
 	    //*/
     });

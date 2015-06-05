@@ -36,12 +36,34 @@ var dd3 = (function () {
 	var peer = {
 		id : null,
 		peers : [],
-		connections : []
+		connections: []
 	};
 	
+	peer.sendTo = function (r, c, data) {
+	    var conn;
+
+	    if (!(conn = peer.connections[r][c])) {
+
+	        var check = peer.peers.some(function (p) {
+                if (+p.col === +c && +p.row === +r) {
+                    peer.connections[r][c] = peer.peer.connect(p.id);
+                    return true;
+	            }
+                return false;
+	        })
+	        
+	        if (!check)
+	            return false;
+	    }
+
+	    conn.send(data);
+
+	    return true;
+	};
+
 	var cave = {
-		width : 0, // Got from server
-		height : 0, // Got from server
+		width : 0, // Computed from server data
+		height: 0, // Computed from server data
 		margin : {
 			top : 0,
 			bottom : 0,
@@ -51,7 +73,7 @@ var dd3 = (function () {
 	};
 	
 	var browser = {
-		number : null, // Used as id for peer.js
+		number : null,
 		width : 1280 / 4, //$(this).width();
 		height : 720 / 2, //$(this).height();
 		margin : {
@@ -165,18 +187,19 @@ var dd3 = (function () {
 		    $.connection.hub.start()
                 .fail(function(){ log('Unable to connect to signalR server'); })
                 .done(function () {
-				log("Connected to signalR server", 1);	
+                    log("Connected to signalR server", 1);
+                    log("Waiting for everyone to connect", 1);
 				
-				var thisInfo = {
-				    browserNum: browser.number,
-				    peerId: peer.id,
-				    row: browser.initRow,
-				    col: browser.initColumn,
-				    height: browser.height,
-				    width: browser.width
-				};
+				    var thisInfo = {
+				        browserNum: browser.number,
+				        peerId: peer.id,
+				        row: browser.initRow,
+				        col: browser.initColumn,
+				        height: browser.height,
+				        width: browser.width
+				    };
 
-				dd3Server.server.updateInformation(thisInfo);
+				    dd3Server.server.updateInformation(thisInfo);
 			});
 		};
 		
@@ -229,7 +252,8 @@ var dd3 = (function () {
 		init.getData = function (scaleX, scaleY) {
 			
 			var d = data.dataDimensions;
-			var p = _dd3.position.svg.toGlobal;
+			var pLeft = _dd3.position('svg','local','svg','global', 'left'),
+			    pTop = _dd3.position('svg','local','svg','global', 'top');
 			var domainX = scaleX ? scaleX.domain().slice() : [d.xmin, d.xmax],
 				rangeX  = scaleX ? scaleX.range().slice()  : [0, cave.svgWidth],
 				domainY = scaleY ? scaleY.domain().slice() : [d.ymin, d.ymax],
@@ -255,10 +279,10 @@ var dd3 = (function () {
 			}
 			
 			var limit = {};
-			var minX = Math.max(p.left(0), rangeX[0]),
-				maxX = Math.min(p.left(browser.svgWidth), rangeX[1]),
-				minY = Math.max(p.top(0), rangeY[0]),
-				maxY = Math.min(p.top(browser.svgHeight), rangeY[1]);
+			var minX = Math.max(pLeft(0), rangeX[0]),
+				maxX = Math.min(pLeft(browser.svgWidth), rangeX[1]),
+				minY = Math.max(pTop(0), rangeY[0]),
+				maxY = Math.min(pTop(browser.svgHeight), rangeY[1]);
 			
 			if (invX > 0) {
 				limit.xmin = domainX[0] + (minX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
@@ -315,37 +339,38 @@ var dd3 = (function () {
 		/**
 		 * dd3.position
 		 */
-		// TO-DO
-		_dd3.position = { 
-			svg : {
-				toLeft : browser.column * browser.width - cave.margin.left + browser.margin.left,
-				toTop : browser.row * browser.height - cave.margin.top + browser.margin.top
-			},
-			browser : {
-				toLeft : browser.column * browser.width,
-				toTop : browser.row * browser.height
-			}
+	    // TO-DO
+
+		function sumWith(s, sign) {
+		    return function (x) { return x + sign*s;};
+		}
+
+		_dd3.position = function (context1, range1, context2, range2, property) {
+		    if (context1 === context2) {
+		        var f = dd3.position[(context1 === 'html') ? 'html' : 'svg'][property];
+		        var sign = (range1 == range2) ? 0 : (range1 == 'local') ? 1 : -1;
+		        return sumWith(f, sign);
+		    } else if (range1 === range2) {
+		        var f = ((range1 === 'local') ? browser : cave).margin[property];
+		        var sign = (context1 === 'html') ? -1 : 1;
+		        return sumWith(f, sign);
+		    } else {
+		        var f = _dd3.position(context1, range1, context1, range2, property);
+		        var g = _dd3.position(context1, range2, context2, range2, property);
+		        return function (x) { return g(f(x)); };
+		    }
 		};
-		
-		_dd3.position.svg.toLocal = {
-			left : function (left) { return left - _dd3.position.svg.toLeft; },
-			top : function (top) { return top - _dd3.position.svg.toTop; }
+
+		_dd3.position.svg = {
+		    left : browser.column * browser.width - cave.margin.left + browser.margin.left,
+		    top : browser.row * browser.height - cave.margin.top + browser.margin.top
 		};
-		
-		_dd3.position.browser.toLocal = {
-			left : function (left) { return left - _dd3.position.browser.toLeft; },
-			top : function (top) { return top - _dd3.position.browser.toTop; }
+
+		_dd3.position.html = {
+		    left: browser.column * browser.width,
+		    top: browser.row * browser.height
 		};
-		
-		_dd3.position.svg.toGlobal = {
-			left : function (left) { return left + _dd3.position.svg.toLeft; },
-			top : function (top) { return top + _dd3.position.svg.toTop; }
-		};
-		
-		_dd3.position.browser.toGlobal = {
-			left : function (left) { return left + _dd3.position.browser.toLeft; },
-			top : function (top) { return top + _dd3.position.browser.toTop; }
-		};
+
 			
 		/**
 		 * Hook helper functions for d3
@@ -391,16 +416,18 @@ var dd3 = (function () {
 		
 		var _dd3_scale_toLocal = function (side, d3_scale)  {
 			var a = function () {
-				
+			    var f = _dd3.position('svg','global','svg','local', side),
+			        g = _dd3.position('svg','local','svg','global', side);
+
 				var dd3_scale = function (x) {
-					return _dd3.position.svg.toLocal[side](d3_scale(x));
+				    return f(d3_scale(x));
 				};
 				
 				_dd3_hookD3Object(d3_scale, dd3_scale);
 				dd3_scale.ticks = _dd3_hook_basic(d3_scale.ticks);
 				dd3_scale.tickFormat = _dd3_hook_basic(d3_scale.tickFormat);
 				dd3_scale.invert = function (x) {
-					return d3_scale.invert(_dd3.position.svg.toGlobal[side](x));
+					return d3_scale.invert(g(x));
 				}; 
 				
 				return dd3_scale;
@@ -423,13 +450,15 @@ var dd3 = (function () {
 		
 		_dd3.svg.axis = function () {
 			var d3_axis = d3.svg.axis();
-			
+			var fLeft = _dd3.position('svg','global','svg','local', 'left'),
+			    fTop = _dd3.position('svg','global','svg','local', 'top');
+
 			var dd3_axis = function (g) {
 				g.each(function() {
 					var g = d3.select(this);
 					var t = d3.transform(g.attr("transform"));
-					var left = _dd3.position.svg.toLocal.left(t.translate[0]),
-						top = _dd3.position.svg.toLocal.top(t.translate[1]),
+					var left = fLeft(t.translate[0]),
+						top = fTop(t.translate[1]),
 						rotate = t.rotate,
 						scale = t.scale;
 						
@@ -446,43 +475,73 @@ var dd3 = (function () {
 		/**
 		* dd3.selection
 		*/
-		/*
-		_dd3.selection = function () {
-			return d3.selection.apply(this, arguments);
-		};
-		
-		_dd3.selection.prototype = Object.create(d3.selection.prototype);
-		
-		_dd3.select = function () {
-			var selected = d3.select.apply(this,arguments);
-			selected.__proto__ = _dd3.selection.prototype;
-			return selected;
-		};
-		
-		_dd3.selectAll = function () {
-			var selected = d3.selectAll.apply(this,arguments);
-			selected.__proto__ = _dd3.selection.prototype;
-			return selected;
-		};
+
+		_dd3.selection = d3.selection;
 		
 		//Now we can change any function used with selections & even add some
 		
-		_dd3.selection.prototype.select = function () {
-			var selected = d3.selection.prototype.select.apply(this, arguments);
-			selected.__proto__ = _dd3.selection.prototype;
-			return selected;
+		var findDest = function (el) {
+		    var dest = [];
+		    var rect = el.getBoundingClientRect();
+
+		    if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.height || rect.left < 0) {
+		        var f = _dd3.position('html', 'local', 'html', 'global', 'left'),
+		            g = _dd3.position('html', 'local', 'html', 'global', 'top');
+		        var topLeft = findBrowserAt(f(rect.left), g(rect.top), 'html'),
+		            topRight = findBrowserAt(f(rect.right), g(rect.top), 'html'),
+		            bottomLeft = findBrowserAt(f(rect.left), g(rect.left), 'html');
+
+		        for (var i = topLeft[0] ; i <= bottomLeft[0] ; i++) {
+		            for (var j = topLeft[1] ; j <= topRight[1] ; j++) { //Check to simplify
+		                if (i != browser.row && j != browser.column) {
+		                    dest.push([i, j]);
+		                }
+		            }
+		        }
+		    }
+
+		    return dest;
 		};
-		
-		_dd3.selection.prototype.selectAll = function () {
-			var selected = d3.selection.prototype.selectAll.apply(this, arguments);
-			selected.__proto__ = _dd3.selection.prototype;
-			return selected;
+
+		var findBrowserAt = function (left, top, context) {
+		    context = context || 'svg';
+
+		    if (context === "svg") {
+		        left = _dd3.position('svg', 'global', 'html', 'global', 'left')(left);
+		        top = _dd3.position('svg', 'global', 'html', 'global', 'top')(top);
+		    }
+
+		    var pos = [];
+		    pos[0] = top / browser.height;
+		    pos[1] = left / browser.width;
+
+            return pos;
 		};
-		
+
 		_dd3.selection.prototype.send = function () {
-			log("Sending ...");
+		    var counter = 0;
+
+		    this.select(function (d, i) {
+		        var col = 0, row = 0, dest, obj;
+
+		        if ((dest = findDest(this)).length > 0) {
+
+		            obj = getAttr(this);
+
+		            dest.forEach(function (d) {
+		                peer.sendTo(d[0], d[1], obj);
+		                counter++;
+		            });
+
+		        }
+
+		        return this;
+		    });
+
+		    log("Sending " + counter + " object...");
 			return this;
-		};*/
+		};
+		
 		
 		/**
 		 * Getter
@@ -504,6 +563,7 @@ var dd3 = (function () {
 		
 		state('ready');
 	};
+
 	/**
 	 * Initialize
 	 */
@@ -626,3 +686,42 @@ init.connectPeers = function () {
 
 
 */
+
+/*
+_dd3.selection = function () {
+    return d3.selection.apply(this, arguments);
+};
+
+_dd3.selection.prototype = Object.create(d3.selection.prototype);
+
+_dd3.select = function () {
+    var selected = d3.select.apply(this, arguments);
+    selected.__proto__ = _dd3.selection.prototype;
+    return selected;
+};
+
+_dd3.selectAll = function () {
+    var selected = d3.selectAll.apply(this, arguments);
+    selected.__proto__ = _dd3.selection.prototype;
+    return selected;
+};
+
+//Now we can change any function used with selections & even add some
+
+_dd3.selection.prototype.select = function () {
+    var selected = d3.selection.prototype.select.apply(this, arguments);
+    selected.__proto__ = _dd3.selection.prototype;
+    return selected;
+};
+
+_dd3.selection.prototype.selectAll = function () {
+    var selected = d3.selection.prototype.selectAll.apply(this, arguments);
+    selected.__proto__ = _dd3.selection.prototype;
+    return selected;
+};
+
+_dd3.selection.prototype.send = function () {
+    log("Sending ...");
+    return this;
+};
+//*/

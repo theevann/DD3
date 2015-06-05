@@ -10,7 +10,7 @@ namespace dd3
     public class dd3Server
     {
         private readonly static Lazy<dd3Server> _instance = new Lazy<dd3Server>(
-            () => new dd3Server(GlobalHost.ConnectionManager.GetHubContext<dd3Hub>().Clients));
+            () => new dd3Server(GlobalHost.ConnectionManager.GetHubContext<dd3Hub>().Clients, GlobalHost.ConnectionManager.GetHubContext<dd3Hub>().Groups));
 
         private static List<ConcurrentDictionary<string, BrowserInfo>> browserList = new List<ConcurrentDictionary<string, BrowserInfo>>();
         private static int currentSession = 0;
@@ -18,11 +18,15 @@ namespace dd3
         private readonly object _locker = new Object();
         private Timer _timerToStart;
         private readonly TimeSpan _timeLimitConnect = TimeSpan.FromSeconds(10);
-
-        private dd3Server(IHubConnectionContext<dynamic> clients)
+        private IHubConnectionContext<dynamic> hubConnectionContext;
+        private IGroupManager groupManager;
+        
+        private dd3Server(IHubConnectionContext<dynamic> clients, IGroupManager groups)
         {
             Clients = clients;
+            Groups = groups;
         }
+
 
         public static dd3Server Instance
         {
@@ -33,6 +37,8 @@ namespace dd3
         }
 
         public IHubConnectionContext<dynamic> Clients { get; set; }
+
+        public IGroupManager Groups { get; set; }
 
         public void newClient(string cid, BrowserInfo b)
         {
@@ -56,6 +62,7 @@ namespace dd3
                 }
 
                 list.TryAdd(cid, new BrowserInfo(cid, b.browserNum, b.peerId, b.col, b.row, b.height, b.width));
+                Groups.Add(cid, currentSession + "");
 
                 _timerToStart = new Timer(broadcastConfiguration, null, _timeLimitConnect, _timeLimitConnect);
             }
@@ -75,10 +82,9 @@ namespace dd3
             }
 
             String browserInfoJson = Newtonsoft.Json.JsonConvert.SerializeObject(browserInfos);
-            Clients.All.receiveConfiguration(browserInfoJson);
+            Clients.Group((currentSession-1) + "").receiveConfiguration(browserInfoJson);
 
         }
-
 
     }
 

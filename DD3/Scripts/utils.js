@@ -59,3 +59,15 @@ function getFullPath (el) {
 
 	return path.join(" ");
 }
+
+function getAttr (el) {
+    var obj = el.attributes, objf = {};
+
+    for (var key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            objf[obj[key].nodeName] = obj[key].nodeValue;
+        }
+    }
+
+    return objf;
+}
