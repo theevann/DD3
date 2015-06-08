@@ -39,27 +39,6 @@ var dd3 = (function () {
 		connections: []
 	};
 	
-	peer.sendTo = function (r, c, data) {
-	    var conn;
-
-	    if (!(conn = peer.connections[r][c])) {
-
-	        var check = peer.peers.some(function (p) {
-                if (+p.col === +c && +p.row === +r) {
-                    peer.connections[r][c] = peer.peer.connect(p.id);
-                    return true;
-	            }
-                return false;
-	        })
-	        
-	        if (!check)
-	            return false;
-	    }
-
-	    conn.send(data);
-
-	    return true;
-	};
 
 	var cave = {
 		width : 0, // Computed from server data
@@ -145,15 +124,53 @@ var dd3 = (function () {
 		
 		init.connectToPeerServer = function (callback) {
 			
-			var p = peer.peer = new Peer({key : 'q35ylav1jljo47vi'});
+			var p = peer.peer = new Peer({key : 'q35ylav1jljo47vi', debug : 0});
 			
+			var plotter = function (data) {
+
+			    if (data.type === 'circle') {
+			        var f = _dd3.position('html', 'global', 'html', 'local', 'left'),
+                        g = _dd3.position('html', 'global', 'html', 'local', 'top');
+
+			        data.attr.cx = f(data.attr.cx);
+			        data.attr.cy = g(data.attr.cy);
+
+			        d3.select("svg") // Make sure to select the right svg if many ... To-Do
+                        .append("circle")
+                        .attr(data.attr);
+			    }
+
+			};
+
+			var dataReceiver = function (data) {
+			    log("Receiving an object...");
+
+			    if (data.type === 'circle') {
+			        plotter(data);
+			    }
+
+			};
+
+            //To Do, problem of double connection to same peer
+			var connect = function (c, callback) {
+			    log("Connection established with Peer : " + c.peer, 0);
+
+			    return peer.peers.some(function (p) {
+			        if (p.peerId === c.peer) {
+			            peer.connections[p.row][p.col] = c;
+			            c.on("data", dataReceiver);
+			            callback && callback(c);
+			            return true;
+			        }
+			        return false;
+			    });
+			};
+
 			p.on('open', function (id) {
 				log('Connected to peer server with id : ' + id, 1);
 				peer.id = id;
 				
-				p.on('connection', function (c) {
-					log("Incoming Connection from Peer : " + c.peer, 0)
-				});
+				p.on('connection', connect);
 				
 				callback();
 			});
@@ -167,6 +184,33 @@ var dd3 = (function () {
 			    }
 
 			});
+
+			peer.sendTo = function (r, c, data) {
+			    var conn;
+
+			    var callback = function (c) {
+			        c.send(data);
+			    };
+
+			    if (!peer.connections[r][c]) {
+
+			        var check = peer.peers.some(function (p) {
+			            if (+p.col === +c && +p.row === +r) {
+			                var conn = peer.peer.connect(p.peerId);
+                            conn.on("open", connect.bind(null, conn, callback));
+			                return true;
+			            }
+			            return false;
+			        })
+
+			        if (!check)
+			            return false;
+			    } else {
+			        callback(peer.connections[r][c]);
+			    }
+
+			    return true;
+			};
 
 			window.onunload = window.onbeforeunload = function(e) {
 				if (!!peer.peer && !peer.peer.destroyed) {
@@ -219,7 +263,14 @@ var dd3 = (function () {
 			
 			browser.column = browser.initColumn - minCol;
 			browser.row = browser.initRow - minRow;
-			
+
+			peersInfo.forEach(function (p) {
+			    p.initColumn = +p.col;
+			    p.initRow = +p.row;
+			    p.col = p.initColumn - minCol;
+			    p.row = p.initRow - minRow;
+			});
+
 			peer.peers = peersInfo;
 			peer.connections = d3.range(0, cave.rows).map(function () { return []; });
 			
@@ -239,6 +290,7 @@ var dd3 = (function () {
 			browser.svgWidth = Math.max(browser.width - browser.margin.left - browser.margin.right, 0);
 			browser.svgHeight = Math.max(browser.height - browser.margin.top - browser.margin.bottom, 0);
 			
+			//setTimeout(launch, 3000);
 			launch();
 		};
 		
@@ -315,30 +367,11 @@ var dd3 = (function () {
 	 */
 	
 	var launch = function () {
-		 
-		var plotter = function (data) {
-			
-			if (data.type == 'point') {
-				d3.select("svg")
-					.append("circle")
-					.attr(data.attr);
-			}
 		
-		};
-
-		 
-		var dataReceiver = function (data) {
-			
-			if (data.type == point) {
-				plotter(data);
-			}
-			
-		};
-		
-
 		/**
 		 * dd3.position
 		 */
+
 	    // TO-DO
 
 		function sumWith(s, sign) {
@@ -484,16 +517,16 @@ var dd3 = (function () {
 		    var dest = [];
 		    var rect = el.getBoundingClientRect();
 
-		    if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.height || rect.left < 0) {
+		    if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) {
 		        var f = _dd3.position('html', 'local', 'html', 'global', 'left'),
 		            g = _dd3.position('html', 'local', 'html', 'global', 'top');
 		        var topLeft = findBrowserAt(f(rect.left), g(rect.top), 'html'),
 		            topRight = findBrowserAt(f(rect.right), g(rect.top), 'html'),
-		            bottomLeft = findBrowserAt(f(rect.left), g(rect.left), 'html');
+		            bottomLeft = findBrowserAt(f(rect.left), g(rect.bottom), 'html');
 
 		        for (var i = topLeft[0] ; i <= bottomLeft[0] ; i++) {
 		            for (var j = topLeft[1] ; j <= topRight[1] ; j++) { //Check to simplify
-		                if (i != browser.row && j != browser.column) {
+		                if (i != browser.row || j != browser.column) {
 		                    dest.push([i, j]);
 		                }
 		            }
@@ -512,8 +545,8 @@ var dd3 = (function () {
 		    }
 
 		    var pos = [];
-		    pos[0] = top / browser.height;
-		    pos[1] = left / browser.width;
+		    pos[0] = ~~(top / browser.height);
+		    pos[1] = ~~(left / browser.width);
 
             return pos;
 		};
@@ -522,11 +555,23 @@ var dd3 = (function () {
 		    var counter = 0;
 
 		    this.select(function (d, i) {
-		        var col = 0, row = 0, dest, obj;
+		        var dest, obj;
 
 		        if ((dest = findDest(this)).length > 0) {
 
-		            obj = getAttr(this);
+		            obj = {
+		                type: this.nodeName,
+		                attr: getAttr(this)
+		            };
+
+		            //As we only send points for now...
+		            var f = _dd3.position('html', 'local', 'html', 'global', 'left'),
+		                g = _dd3.position('html', 'local', 'html', 'global', 'top'),
+                        rect = this.getBoundingClientRect();
+
+		            obj.attr.cx = f(+rect.left + +rect.width / 2);
+		            obj.attr.cy = g(+rect.top + +rect.height / 2);
+		            obj.attr.style = "stroke:red;fill:red";
 
 		            dest.forEach(function (d) {
 		                peer.sendTo(d[0], d[1], obj);
@@ -538,7 +583,7 @@ var dd3 = (function () {
 		        return this;
 		    });
 
-		    log("Sending " + counter + " object...");
+		    log("Sending " + counter + " objects...");
 			return this;
 		};
 		
