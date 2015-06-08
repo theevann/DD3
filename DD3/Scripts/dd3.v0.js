@@ -1,3 +1,6 @@
+/**
+*   Version 0.0.1
+*/
 
 var dd3 = (function () {
 	"use strict";
