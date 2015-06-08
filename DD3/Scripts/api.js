@@ -1,8 +1,10 @@
 var api = {};
 var uid = 0;
 
-api.dataPoints = d3.range(0, 26, 0.1).map(function(d) {return {id : uid++, x : d, y : Math.cos(d)*3};});
+api.dataPoints = d3.range(0, 26, 0.2).map(function (d) { return { id: uid++, x: d, y: Math.cos(d) * 3 }; });
+//api.dataPoints = d3.range(0, 26, 0.4).map(function (d) { return { id: uid++, x: d, y: Math.cos(d) }; });
 //api.dataPoints = d3.range(-10,15,0.2).map(function(d) {return [d, d*d];});
+//api.dataPoints = [{ x: 1, y: 2 }, { x: 4.5, y: 3.3 }, { x: 1, y: 5 }, { x: 8, y: 2 }, ]
 
 api.getConf;
 

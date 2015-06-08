@@ -64,7 +64,7 @@ function getAttr (el) {
     var obj = el.attributes, objf = {};
 
     for (var key in obj) {
-        if (obj.hasOwnProperty(key)) {
+        if (obj.hasOwnProperty(key) && typeof obj[key].nodeName !== "undefined") {
             objf[obj[key].nodeName] = obj[key].nodeValue;
         }
     }
