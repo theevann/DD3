@@ -17,7 +17,7 @@ namespace dd3
 
         private readonly object _locker = new Object();
         private Timer _timerToStart;
-        private readonly TimeSpan _timeLimitConnect = TimeSpan.FromSeconds(10);
+        private readonly TimeSpan _timeLimitConnect = TimeSpan.FromSeconds(3);
         private IHubConnectionContext<dynamic> hubConnectionContext;
         private IGroupManager groupManager;
         
