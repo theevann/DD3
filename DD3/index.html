@@ -40,7 +40,7 @@ body {
 	    var xDomain = [dim.xmin - coef * extent - c, dim.xmax + coef * extent + c];
 	    var yDomain = [dim.ymin - coef * extent - c, dim.ymax + coef * extent + c];
 
-	    // setup x 
+	    // setup x
 	    var xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]).toLocalLeft(),
 		    xAxis = dd3.svg.axis().scale(xScale).orient("bottom");
 
@@ -52,7 +52,6 @@ body {
 	    yScale.domain(yDomain);
 
 	    var data = dd3.getData(xScale, yScale);
-
 
 	    var svg = dd3.select("body").append("svg")
 		    .attr("width", dd3.browser().width)
@@ -85,6 +84,23 @@ body {
 	      .attr("dy", ".71em")
 	      .style("text-anchor", "end")
 	      .text("Y axis");
+
+	    var rGroup = svg.append('g').attr("id", "myRect");
+
+	    if (dd3.browser().initRow == 1 && dd3.browser().initColumn == 12) {
+	        rGroup
+                .append('rect')
+                .attr("x", xScale(3))
+                .attr("y", yScale(1))
+                .attr("width", xScale(15) - xScale(3))
+                .attr("height", yScale(0) - yScale(2))
+                .attr("transform","rotate(45)")
+                .attr("stroke", "black")
+                .attr("fill", "green")
+                .send();
+	    } else {
+	        rGroup.attr("transform", "rotate(20)")
+	    }
 
 	    // draw dots
 	    svg.selectAll(".dot")

@@ -41,7 +41,6 @@ var dd3 = (function () {
 		peers : [],
 		connections: []
 	};
-	
 
 	var cave = {
 		width : 0, // Computed from server data
@@ -126,21 +125,62 @@ var dd3 = (function () {
 		};
 		
 		init.connectToPeerServer = function (callback) {
-			
+
 			var p = peer.peer = new Peer({key : 'q35ylav1jljo47vi', debug : 0});
 			
 			var plotter = function (data) {
 
-			    if (data.type === 'circle') {
-			        var f = _dd3.position('html', 'global', 'html', 'local', 'left'),
-                        g = _dd3.position('html', 'global', 'html', 'local', 'top');
+			    switch(data.type) {
+                    case 'circle':
+                        var f = _dd3.position('html', 'global', 'html', 'local'),
+                            svg = d3.select("svg"), // Make sure to select the right svg if many ... To-Do
+                            g = d3.select(data.container);
 
-			        data.attr.cx = f(data.attr.cx);
-			        data.attr.cy = g(data.attr.cy);
+                        data.ctm.e = f.left(+data.ctm.e);
+                        data.ctm.f = f.top(+data.ctm.f);
 
-			        d3.select("svg") // Make sure to select the right svg if many ... To-Do
-                        .append("circle")
-                        .attr(data.attr);
+                        var gCtm = g.node().getCTM();
+                        var ctm = svg.node().createSVGMatrix();
+                        ctm.a = data.ctm.a;
+                        ctm.b = data.ctm.b;
+                        ctm.c = data.ctm.c;
+                        ctm.d = data.ctm.d;
+                        ctm.e = data.ctm.e;
+                        ctm.f = data.ctm.f;
+
+                        ctm = gCtm.inverse().multiply(ctm);
+
+			            g.append("g")
+                            .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
+                            .append("circle")
+                            .attr(data.attr);
+
+			            break;
+			        case 'rect':
+			            var f = _dd3.position('html', 'global', 'html', 'local'),
+                            svg = d3.select("svg"), // Make sure to select the right svg if many ... To-Do
+                            g = d3.select(data.container);
+
+			            data.ctm.e = f.left(+data.ctm.e);
+			            data.ctm.f = f.top(+data.ctm.f);
+
+			            var gCtm = g.node().getCTM();
+			            var ctm = svg.node().createSVGMatrix();
+			            ctm.a = data.ctm.a;
+			            ctm.b = data.ctm.b;
+			            ctm.c = data.ctm.c;
+			            ctm.d = data.ctm.d;
+			            ctm.e = data.ctm.e;
+			            ctm.f = data.ctm.f;
+
+			            ctm = gCtm.inverse().multiply(ctm);
+
+			            g.append("g")
+                            .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
+                            .append("rect")
+                            .attr(data.attr);
+
+			            break;
 			    }
 
 			};
@@ -148,8 +188,13 @@ var dd3 = (function () {
 			var dataReceiver = function (data) {
 			    log("Receiving an object...");
 
-			    if (data.type === 'circle') {
-			        plotter(data);
+			    switch (data.type) {
+			        case 'circle':
+			            plotter(data);
+			        break;
+                    case 'rect':
+                        plotter(data);
+                    break;
 			    }
 
 			};
@@ -307,8 +352,7 @@ var dd3 = (function () {
 		init.getData = function (scaleX, scaleY) {
 			
 			var d = data.dataDimensions;
-			var pLeft = _dd3.position('svg','local','svg','global', 'left'),
-			    pTop = _dd3.position('svg','local','svg','global', 'top');
+			var p = _dd3.position('svg', 'local', 'svg', 'global');
 			var domainX = scaleX ? scaleX.domain().slice() : [d.xmin, d.xmax],
 				rangeX  = scaleX ? scaleX.range().slice()  : [0, cave.svgWidth],
 				domainY = scaleY ? scaleY.domain().slice() : [d.ymin, d.ymax],
@@ -334,10 +378,10 @@ var dd3 = (function () {
 			}
 			
 			var limit = {};
-			var minX = Math.max(pLeft(0), rangeX[0]),
-				maxX = Math.min(pLeft(browser.svgWidth), rangeX[1]),
-				minY = Math.max(pTop(0), rangeY[0]),
-				maxY = Math.min(pTop(browser.svgHeight), rangeY[1]);
+			var minX = Math.max(p.left(0), rangeX[0]),
+				maxX = Math.min(p.left(browser.svgWidth), rangeX[1]),
+				minY = Math.max(p.top(0), rangeY[0]),
+				maxY = Math.min(p.top(browser.svgHeight), rangeY[1]);
 			
 			if (invX > 0) {
 				limit.xmin = domainX[0] + (minX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
@@ -381,20 +425,25 @@ var dd3 = (function () {
 		    return function (x) { return x + sign*s;};
 		}
 
-		_dd3.position = function (context1, range1, context2, range2, property) {
+		_dd3.position = function (context1, range1, context2, range2) {
+		    var p = {};
 		    if (context1 === context2) {
-		        var f = dd3.position[(context1 === 'html') ? 'html' : 'svg'][property];
+		        var f = dd3.position[(context1 === 'html') ? 'html' : 'svg'];
 		        var sign = (range1 == range2) ? 0 : (range1 == 'local') ? 1 : -1;
-		        return sumWith(f, sign);
+		        p.left = sumWith(f.left, sign);
+		        p.top = sumWith(f.top, sign);
 		    } else if (range1 === range2) {
-		        var f = ((range1 === 'local') ? browser : cave).margin[property];
+		        var f = ((range1 === 'local') ? browser : cave).margin;
 		        var sign = (context1 === 'html') ? -1 : 1;
-		        return sumWith(f, sign);
+		        p.left = sumWith(f.left, sign);
+		        p.top = sumWith(f.top, sign);
 		    } else {
-		        var f = _dd3.position(context1, range1, context1, range2, property);
-		        var g = _dd3.position(context1, range2, context2, range2, property);
-		        return function (x) { return g(f(x)); };
+		        var f = _dd3.position(context1, range1, context1, range2);
+		        var g = _dd3.position(context1, range2, context2, range2);
+		        p.left = function (x) { return g.left(f.left(x)); };
+		        p.top = function (x) { return g.top(f.top(x)); };
 		    }
+		    return p;
 		};
 
 		_dd3.position.svg = {
@@ -407,6 +456,12 @@ var dd3 = (function () {
 		    top: browser.row * browser.height
 		};
 
+
+        // Most used functions already computed ... time saving !
+		var hghl = _dd3.position('html', 'global', 'html', 'local'),
+            hlhg = _dd3.position('html', 'local', 'html', 'global'),
+		    sghg = _dd3.position('svg', 'global', 'html', 'global'),
+	        slsg = _dd3.position('svg', 'local', 'svg', 'global');
 			
 		/**
 		 * Hook helper functions for d3
@@ -452,8 +507,8 @@ var dd3 = (function () {
 		
 		var _dd3_scale_toLocal = function (side, d3_scale)  {
 			var a = function () {
-			    var f = _dd3.position('svg','global','svg','local', side),
-			        g = _dd3.position('svg','local','svg','global', side);
+			    var f = _dd3.position('svg','global','svg','local')[side],
+			        g = _dd3.position('svg','local','svg','global')[side];
 
 				var dd3_scale = function (x) {
 				    return f(d3_scale(x));
@@ -486,15 +541,14 @@ var dd3 = (function () {
 		
 		_dd3.svg.axis = function () {
 			var d3_axis = d3.svg.axis();
-			var fLeft = _dd3.position('svg','global','svg','local', 'left'),
-			    fTop = _dd3.position('svg','global','svg','local', 'top');
+			var f = _dd3.position('svg', 'global', 'svg', 'local');
 
 			var dd3_axis = function (g) {
 				g.each(function() {
 					var g = d3.select(this);
 					var t = d3.transform(g.attr("transform"));
-					var left = fLeft(t.translate[0]),
-						top = fTop(t.translate[1]),
+					var left = f.left(t.translate[0]),
+						top = f.top(t.translate[1]),
 						rotate = t.rotate,
 						scale = t.scale;
 						
@@ -521,11 +575,10 @@ var dd3 = (function () {
 		    var rect = el.getBoundingClientRect();
 
 		    if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) {
-		        var f = _dd3.position('html', 'local', 'html', 'global', 'left'),
-		            g = _dd3.position('html', 'local', 'html', 'global', 'top');
-		        var topLeft = findBrowserAt(f(rect.left), g(rect.top), 'html'),
-		            topRight = findBrowserAt(f(rect.right), g(rect.top), 'html'),
-		            bottomLeft = findBrowserAt(f(rect.left), g(rect.bottom), 'html');
+		        var f = hlhg;
+		        var topLeft = findBrowserAt(f.left(rect.left), f.top(rect.top), 'html'),
+		            topRight = findBrowserAt(f.left(rect.right), f.top(rect.top), 'html'),
+		            bottomLeft = findBrowserAt(f.left(rect.left), f.top(rect.bottom), 'html');
 
 		        for (var i = topLeft[0] ; i <= bottomLeft[0] ; i++) {
 		            for (var j = topLeft[1] ; j <= topRight[1] ; j++) { //Check to simplify
@@ -541,10 +594,11 @@ var dd3 = (function () {
 
 		var findBrowserAt = function (left, top, context) {
 		    context = context || 'svg';
+		    var f = sghg;
 
 		    if (context === "svg") {
-		        left = _dd3.position('svg', 'global', 'html', 'global', 'left')(left);
-		        top = _dd3.position('svg', 'global', 'html', 'global', 'top')(top);
+		        left = f.left(left);
+		        top = f.top(top);
 		    }
 
 		    var pos = [];
@@ -564,18 +618,64 @@ var dd3 = (function () {
 
 		            obj = {
 		                type: this.nodeName,
-		                attr: getAttr(this)
+		                attr: getAttr(this),
+		                ctm: null,
+                        container : ""
 		            };
 
 		            //As we only send points for now...
-		            var f = _dd3.position('html', 'local', 'html', 'global', 'left'),
-		                g = _dd3.position('html', 'local', 'html', 'global', 'top'),
-                        rect = this.getBoundingClientRect();
+		            switch (obj.type) {
+                        case 'circle':
+                            var f = hlhg,
+                                identifiedContainer = getIdentifiedContainer(this, false),
+                                m = d3.select('svg').node().createSVGMatrix(),
+                                ctm = this.getCTM().multiply(m.translate(obj.attr.cx, obj.attr.cy));
 
-		            obj.attr.cx = f(+rect.left + +rect.width / 2);
-		            obj.attr.cy = g(+rect.top + +rect.height / 2);
-		            obj.attr.style = "stroke:red;fill:red";
+                            ctm.e = f.left(ctm.e);
+                            ctm.f = f.top(ctm.f);
 
+                            obj.attr.cx = 0;
+                            obj.attr.cy = 0;
+                            obj.attr.transform = "";
+
+                            obj.ctm = {};
+                            obj.ctm.a = ctm.a;
+                            obj.ctm.b = ctm.b;
+                            obj.ctm.c = ctm.c;
+                            obj.ctm.d = ctm.d;
+                            obj.ctm.e = ctm.e;
+                            obj.ctm.f = ctm.f;
+                            obj.container = identifiedContainer;
+
+                            obj.attr.style = "stroke:red;fill:red";
+                            break;
+
+		                case 'rect':
+		                    var f = hlhg,
+                                identifiedContainer = getIdentifiedContainer(this, false),
+                                m = d3.select('svg').node().createSVGMatrix(),
+                                ctm = this.getCTM().multiply(m.translate(obj.attr.x, obj.attr.y));
+
+		                    ctm.e = f.left(ctm.e);
+		                    ctm.f = f.top(ctm.f);
+
+		                    obj.attr.x = 0;
+		                    obj.attr.y = 0;
+		                    obj.attr.transform = "";
+
+		                    obj.ctm = {};
+		                    obj.ctm.a = ctm.a;
+		                    obj.ctm.b = ctm.b;
+		                    obj.ctm.c = ctm.c;
+		                    obj.ctm.d = ctm.d;
+		                    obj.ctm.e = ctm.e;
+		                    obj.ctm.f = ctm.f;
+		                    obj.container = identifiedContainer;
+
+		                    obj.attr.style = "stroke:red;fill:rgb(29, 219, 29);";
+		                    break;
+		            }
+		           
 		            dest.forEach(function (d) {
 		                peer.sendTo(d[0], d[1], obj);
 		                counter++;
