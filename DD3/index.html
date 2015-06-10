@@ -53,11 +53,7 @@ body {
 
 	    var data = dd3.getData(xScale, yScale);
 
-	    var svg = dd3.select("body").append("svg")
-		    .attr("width", dd3.browser().width)
-		    .attr("height", dd3.browser().height)
-		    .append("g")
-		    .attr("transform", "translate(" + dd3.browser().margin.left + "," + dd3.browser().margin.top + ")");
+	    var svg = dd3.svgCanvas.data([data]);
 
 	    //*
 	    // x-axis
@@ -84,8 +80,9 @@ body {
 	      .attr("dy", ".71em")
 	      .style("text-anchor", "end")
 	      .text("Y axis");
-
+        //*
 	    var rGroup = svg.append('g').attr("id", "myRect");
+	    var pGroup = svg.append('g').attr("id", "myPoly");
 
 	    if (dd3.browser().initRow == 1 && dd3.browser().initColumn == 12) {
 	        rGroup
@@ -94,26 +91,48 @@ body {
                 .attr("y", yScale(1))
                 .attr("width", xScale(15) - xScale(3))
                 .attr("height", yScale(0) - yScale(2))
-                .attr("transform","rotate(45)")
+                .attr("transform","rotate(30)scale(1.5)")
                 .attr("stroke", "black")
-                .attr("fill", "green")
+                .attr("fill", "rgb(29, 219, 29)")
                 .send();
+	    } else if (dd3.browser().initRow == 1 && dd3.browser().initColumn == 11){
+	        pGroup
+               .append('polygon')
+               .attr("points", "50 160 55 180 70 180 60 190 65 205 50 195 35 205 40 190 30 180 45 180")
+               .attr("transform", " scale(6) translate(50, -180)")
+               .attr("stroke", "orange")
+               .attr("stroke-width", "4")
+               .attr("fill", "transparent")
+               .send();
 	    } else {
-	        rGroup.attr("transform", "rotate(20)")
+	        rGroup.attr("transform", "rotate(20)");
 	    }
+        //*/
 
 	    // draw dots
 	    svg.selectAll(".dot")
-	      .data(data)
+	      .data(function (d) { return d; })
 	    .enter()
           .append("g")
           .append("circle")
 	      .attr("class", "dot")
-	      .attr("r", 5)
+	      .attr("r", 7)
 	      .attr("cx", function (d) { return xScale(d['x']); })
 	      .attr("cy", function (d) { return yScale(d['y']); })
 	      .style("fill", function (d, i) { return "black"; })
+	      .style("stroke", "red")
 	      .send();
+
+	    var lineFunction = d3.svg.line()
+	            .x(function (d) { return xScale(d['x']); })
+	            .y(function (d) { return yScale(d['y']); })
+	            .interpolate("monotone");
+
+	    svg.append("path")
+	        .attr("d", lineFunction(data))
+	        .attr("stroke", "blue")
+	        .attr("stroke-width", 2)
+	        .attr("fill", "none");
 	  
 	    //*/
     });

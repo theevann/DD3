@@ -84,3 +84,12 @@ function getIdentifiedContainer(el, returnElement) {
     container = returnElement ? container : container.id !== "" ? "#" + container.id : 'svg g';
     return container;
 }
+
+function copyCTMFromTo(original, copy) {
+    copy.a = original.a;
+    copy.b = original.b;
+    copy.c = original.c;
+    copy.d = original.d;
+    copy.e = original.e;
+    copy.f = original.f;
+}

@@ -130,71 +130,42 @@ var dd3 = (function () {
 			
 			var plotter = function (data) {
 
-			    switch(data.type) {
-                    case 'circle':
-                        var f = _dd3.position('html', 'global', 'html', 'local'),
-                            svg = d3.select("svg"), // Make sure to select the right svg if many ... To-Do
-                            g = d3.select(data.container);
+                var f = _dd3.position('html', 'global', 'html', 'local'),
+                    svg = d3.select("svg"), // To-Do : Make sure to select the right svg if many ... 
+                    g = d3.select(data.container);
+                        
+		        // If id of the container doesn't exist in the receiver dom, take 'svg g' instead
+                g = g.empty() ? svg.select("g") : g;
 
-                        data.ctm.e = f.left(+data.ctm.e);
-                        data.ctm.f = f.top(+data.ctm.f);
+                // Get the group container ctm and create a new matrix for the incoming svg object
+                var gCtm = g.node().getCTM(),
+                    ctm = svg.node().createSVGMatrix();
 
-                        var gCtm = g.node().getCTM();
-                        var ctm = svg.node().createSVGMatrix();
-                        ctm.a = data.ctm.a;
-                        ctm.b = data.ctm.b;
-                        ctm.c = data.ctm.c;
-                        ctm.d = data.ctm.d;
-                        ctm.e = data.ctm.e;
-                        ctm.f = data.ctm.f;
+                // Convert the global translate parameter to local one
+                data.ctm.e = f.left(+data.ctm.e);
+                data.ctm.f = f.top(+data.ctm.f);
 
-                        ctm = gCtm.inverse().multiply(ctm);
+                // ctm = data.ctm
+                copyCTMFromTo(data.ctm, ctm);
+			    // The svg object will be placed in the group. To keep its position and orientation,
+			    // we applied the inverse transformation of the one that will be applied to it
+                // by the container group transform attribute.
+                ctm = gCtm.inverse().multiply(ctm);
 
-			            g.append("g")
-                            .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-                            .append("circle")
-                            .attr(data.attr);
-
-			            break;
-			        case 'rect':
-			            var f = _dd3.position('html', 'global', 'html', 'local'),
-                            svg = d3.select("svg"), // Make sure to select the right svg if many ... To-Do
-                            g = d3.select(data.container);
-
-			            data.ctm.e = f.left(+data.ctm.e);
-			            data.ctm.f = f.top(+data.ctm.f);
-
-			            var gCtm = g.node().getCTM();
-			            var ctm = svg.node().createSVGMatrix();
-			            ctm.a = data.ctm.a;
-			            ctm.b = data.ctm.b;
-			            ctm.c = data.ctm.c;
-			            ctm.d = data.ctm.d;
-			            ctm.e = data.ctm.e;
-			            ctm.f = data.ctm.f;
-
-			            ctm = gCtm.inverse().multiply(ctm);
-
-			            g.append("g")
-                            .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-                            .append("rect")
-                            .attr(data.attr);
-
-			            break;
-			    }
-
+                // Make it clean by appending the svg object into a group to which we apply the transformation
+			    g.append("g")
+                    .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
+                    .append(data.name)
+                    .attr(data.attr);
 			};
 
 			var dataReceiver = function (data) {
 			    log("Receiving an object...");
-
+                
 			    switch (data.type) {
-			        case 'circle':
+			        case 'shape':
 			            plotter(data);
-			        break;
-                    case 'rect':
-                        plotter(data);
-                    break;
+			            break;
 			    }
 
 			};
@@ -415,6 +386,16 @@ var dd3 = (function () {
 	
 	var launch = function () {
 		
+	    /**
+         * Create the svg and provide it for use
+         */
+
+	    _dd3.svgCanvas = d3.select("body").append("svg")
+		    .attr("width", browser.width)
+		    .attr("height", browser.height)
+		    .append("g")
+		    .attr("transform", "translate(" + [browser.margin.left, browser.margin.top] + ")");
+
 		/**
 		 * dd3.position
 		 */
@@ -575,13 +556,13 @@ var dd3 = (function () {
 		    var rect = el.getBoundingClientRect();
 
 		    if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) {
-		        var f = hlhg;
-		        var topLeft = findBrowserAt(f.left(rect.left), f.top(rect.top), 'html'),
+		        var f = hlhg,
+                    topLeft = findBrowserAt(f.left(rect.left), f.top(rect.top), 'html'),
 		            topRight = findBrowserAt(f.left(rect.right), f.top(rect.top), 'html'),
 		            bottomLeft = findBrowserAt(f.left(rect.left), f.top(rect.bottom), 'html');
 
-		        for (var i = topLeft[0] ; i <= bottomLeft[0] ; i++) {
-		            for (var j = topLeft[1] ; j <= topRight[1] ; j++) { //Check to simplify
+		        for (var i = Math.max(topLeft[0], 0), maxR = Math.min(bottomLeft[0], cave.rows - 1) ; i <= maxR ; i++) {
+		            for (var j = Math.max(topLeft[1], 0), maxC = Math.min(topRight[1], cave.columns - 1) ; j <= maxC; j++) { //Check to simplify
 		                if (i != browser.row || j != browser.column) {
 		                    dest.push([i, j]);
 		                }
@@ -594,11 +575,10 @@ var dd3 = (function () {
 
 		var findBrowserAt = function (left, top, context) {
 		    context = context || 'svg';
-		    var f = sghg;
 
 		    if (context === "svg") {
-		        left = f.left(left);
-		        top = f.top(top);
+		        left = sghg.left(left);
+		        top = sghg.top(top);
 		    }
 
 		    var pos = [];
@@ -608,87 +588,59 @@ var dd3 = (function () {
             return pos;
 		};
 
-		_dd3.selection.prototype.send = function () {
-		    var counter = 0;
+		_dd3.selection.prototype.send = (function () {
+		    var m = d3.select('svg').node().createSVGMatrix();
 
-		    this.select(function (d, i) {
-		        var dest, obj;
+		    return function () {
+		        var counter = 0, dest;
 
-		        if ((dest = findDest(this)).length > 0) {
+		        this.select(function (d, i) {
+		            
+		            if ((dest = findDest(this)).length > 0) {
 
-		            obj = {
-		                type: this.nodeName,
-		                attr: getAttr(this),
-		                ctm: null,
-                        container : ""
-		            };
+		                var idContainer = getIdentifiedContainer(this, false),
+                            ctm = this.getCTM(),
+		                    obj = {	// Create a new object to send
+		                        type: 'shape',
+		                        name: '',
+		                        attr: null,
+		                        ctm: null,
+		                        container: ""
+		                    };
 
-		            //As we only send points for now...
-		            switch (obj.type) {
-                        case 'circle':
-                            var f = hlhg,
-                                identifiedContainer = getIdentifiedContainer(this, false),
-                                m = d3.select('svg').node().createSVGMatrix(),
-                                ctm = this.getCTM().multiply(m.translate(obj.attr.cx, obj.attr.cy));
+                        // Get all attributes from current SVG object
+		                obj.attr = getAttr(this);
+		                obj.name = this.nodeName;
+                    
+		                // Make the translation parameter global to send it to others
+		                ctm.e = hlhg.left(ctm.e);
+		                ctm.f = hlhg.top(ctm.f);
+                    
+		                // Remove any transformation on the object as we handle it with the ctm
+		                obj.attr.transform = null;
+		                //obj.attr.style = "fill:pink;stroke:red";
 
-                            ctm.e = f.left(ctm.e);
-                            ctm.f = f.top(ctm.f);
-
-                            obj.attr.cx = 0;
-                            obj.attr.cy = 0;
-                            obj.attr.transform = "";
-
-                            obj.ctm = {};
-                            obj.ctm.a = ctm.a;
-                            obj.ctm.b = ctm.b;
-                            obj.ctm.c = ctm.c;
-                            obj.ctm.d = ctm.d;
-                            obj.ctm.e = ctm.e;
-                            obj.ctm.f = ctm.f;
-                            obj.container = identifiedContainer;
-
-                            obj.attr.style = "stroke:red;fill:red";
-                            break;
-
-		                case 'rect':
-		                    var f = hlhg,
-                                identifiedContainer = getIdentifiedContainer(this, false),
-                                m = d3.select('svg').node().createSVGMatrix(),
-                                ctm = this.getCTM().multiply(m.translate(obj.attr.x, obj.attr.y));
-
-		                    ctm.e = f.left(ctm.e);
-		                    ctm.f = f.top(ctm.f);
-
-		                    obj.attr.x = 0;
-		                    obj.attr.y = 0;
-		                    obj.attr.transform = "";
-
-		                    obj.ctm = {};
-		                    obj.ctm.a = ctm.a;
-		                    obj.ctm.b = ctm.b;
-		                    obj.ctm.c = ctm.c;
-		                    obj.ctm.d = ctm.d;
-		                    obj.ctm.e = ctm.e;
-		                    obj.ctm.f = ctm.f;
-		                    obj.container = identifiedContainer;
-
-		                    obj.attr.style = "stroke:red;fill:rgb(29, 219, 29);";
-		                    break;
-		            }
+		                // Matrix CTM not sendable with peer.js, just copy the parameter into a normal object
+		                copyCTMFromTo(ctm, obj.ctm = {});
+		                // Remember the container to keep the drawing order (superposition)
+		                obj.container = idContainer;
 		           
-		            dest.forEach(function (d) {
-		                peer.sendTo(d[0], d[1], obj);
-		                counter++;
-		            });
+		                // Send it to all who may have to plot it
+		                dest.forEach(function (d) {
+		                    peer.sendTo(d[0], d[1], obj);
+		                    counter++;
+		                });
 
-		        }
+		            }
 
+		            // We may chose to return only sent objects ... to be decided later
+		            return this;
+		        });
+
+		        log("Sending " + counter + " objects...");
 		        return this;
-		    });
-
-		    log("Sending " + counter + " objects...");
-			return this;
-		};
+		    };
+		})();
 		
 		
 		/**
