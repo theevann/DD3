@@ -82,13 +82,13 @@ var dd3 = (function () {
 			state('connecting');
 			init.setBrowserConfiguration();
 			init.connectToPeerServer(init.connectToSignalRServer);
-			init.getDataDimensions();
+			//init.getDataDimensions();
 		};
 		
 		init.checkLibraries = function () {
 			var toCheck = ['d3', 'Peer', 'jQuery', ['jQuery', 'signalR']];
 			
-			var check = toCheck.some(function (lib) {
+			var check = toCheck.some(function (lib, i) {
 				var ok = false;
 				if (typeof lib === 'string' && typeof window[lib] === "undefined") {
 					log("Initialization failed : " + lib + " was not found", 4);
@@ -102,7 +102,7 @@ var dd3 = (function () {
 						}
 						return false;
 					});
-					lib = lib.join('.');
+					toCheck[i] = lib.join('.');
 				}
 				return ok;
 			});
@@ -110,7 +110,7 @@ var dd3 = (function () {
 			if(check)
 				return false;
 			
-			log(toCheck.join(', ') + " successfully loaded", 1);
+			log("All Libraries successfully loaded\n[" + toCheck.join(', ') + ']', 1);
 			return true;
 		};
 		
@@ -126,7 +126,7 @@ var dd3 = (function () {
 		
 		init.connectToPeerServer = function (callback) {
 
-			var p = peer.peer = new Peer({key : 'q35ylav1jljo47vi', debug : 0});
+		    var p = peer.peer = new Peer({ key: 'x7fwx2kavpy6tj4i', debug: 0 });
 			
 			var plotter = function (data) {
 
@@ -313,66 +313,93 @@ var dd3 = (function () {
 			launch();
 		};
 		
-		init.getDataDimensions = function () {
+		init.getDataDimensions = function (bar) {
 			log("Getting Data dimensions from api", 1);
-			data.dataDimensions = api.getDataDimensions();
+			data.dataDimensions = bar ? api.getBarDataDimensions() : api.getDataDimensions();
 			return data.dataDimensions;
 		};
 		
-		// For now we get data just for a basic static scatterplot
-		init.getData = function (scaleX, scaleY) {
-			
-			var d = data.dataDimensions;
-			var p = _dd3.position('svg', 'local', 'svg', 'global');
-			var domainX = scaleX ? scaleX.domain().slice() : [d.xmin, d.xmax],
-				rangeX  = scaleX ? scaleX.range().slice()  : [0, cave.svgWidth],
-				domainY = scaleY ? scaleY.domain().slice() : [d.ymin, d.ymax],
-				rangeY  = scaleY ? scaleY.range().slice()  : [cave.svgHeight, 0];
-			
-			var invX = 1, invY = 1;
-			
-			if (domainX[0] > domainX[1]) {
-				domainX.reverse();
-				invX *= -1;
-			}
-			if (rangeX[0] > rangeX[1]) {
-				rangeX.reverse();
-				invX *= -1;
-			}
-			if (domainY[0] > domainY[1]) {
-				domainY.reverse();
-				invY *= -1;
-			}
-			if (rangeY[0] > rangeY[1]) {
-				rangeY.reverse();
-				invY *= -1;
-			}
-			
-			var limit = {};
-			var minX = Math.max(p.left(0), rangeX[0]),
+		init.data = {};
+
+		init.data.getBounds = function (scaleX, scaleY) {
+
+		    var d = data.dataDimensions;
+		    var p = _dd3.position('svg', 'local', 'svg', 'global');
+		    var domainX = scaleX ? scaleX.domain().slice() : [d.x.min, d.x.max],
+				rangeX = scaleX ? scaleX.range().slice() : [0, cave.svgWidth],
+				domainY = scaleY ? scaleY.domain().slice() : [d.y.min, d.y.max],
+				rangeY = scaleY ? scaleY.range().slice() : [cave.svgHeight, 0];
+
+		    var invX = 1, invY = 1;
+
+		    if (domainX[0] > domainX[1]) {
+		        domainX.reverse();
+		        invX *= -1;
+		    }
+		    if (rangeX[0] > rangeX[1]) {
+		        rangeX.reverse();
+		        invX *= -1;
+		    }
+		    if (domainY[0] > domainY[1]) {
+		        domainY.reverse();
+		        invY *= -1;
+		    }
+		    if (rangeY[0] > rangeY[1]) {
+		        rangeY.reverse();
+		        invY *= -1;
+		    }
+
+		    var limit = {};
+		    var minX = Math.max(p.left(0), rangeX[0]),
 				maxX = Math.min(p.left(browser.svgWidth), rangeX[1]),
 				minY = Math.max(p.top(0), rangeY[0]),
 				maxY = Math.min(p.top(browser.svgHeight), rangeY[1]);
+
+		    if (invX > 0) {
+		        limit.xmin = domainX[0] + (minX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
+		        limit.xmax = domainX[0] + (maxX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
+		    } else {
+		        limit.xmin = domainX[0] + (rangeX[1] - maxX) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
+		        limit.xmax = domainX[0] + (rangeX[1] - minX) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
+		    }
+
+		    if (invY > 0) {
+		        limit.ymin = domainY[0] + (minY - rangeY[0]) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
+		        limit.ymax = domainY[0] + (maxY - rangeY[0]) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
+		    } else {
+		        limit.ymin = domainY[0] + (rangeY[1] - maxY) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
+		        limit.ymax = domainY[0] + (rangeY[1] - minY) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
+		    }
+
+		    return limit;
+		};
+
+		// For now we get data just for a basic static scatterplot
+		init.data.getData = function (scaleX, scaleY) {
 			
-			if (invX > 0) {
-				limit.xmin = domainX[0] + (minX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
-				limit.xmax = domainX[0] + (maxX - rangeX[0]) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
-			} else {
-				limit.xmin = domainX[0] + (rangeX[1] - maxX) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);
-				limit.xmax = domainX[0] + (rangeX[1] - minX) / (rangeX[1] - rangeX[0]) * (domainX[1] - domainX[0]);				
-			}
+		    data.dataPoints = api.getData(init.data.getBounds(scaleX, scaleY));
 			
-			if (invY > 0) {
-				limit.ymin = domainY[0] + (minY - rangeY[0]) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
-				limit.ymax = domainY[0] + (maxY - rangeY[0]) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
-			} else {
-				limit.ymin = domainY[0] + (rangeY[1] - maxY) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);
-				limit.ymax = domainY[0] + (rangeY[1] - minY) / (rangeY[1] - rangeY[0]) * (domainY[1] - domainY[0]);				
-			}
-			
-			data.dataPoints = api.getData(limit);
-			 
 			return data.dataPoints;
+		};
+
+		init.data.getPathData = function (scaleX, scaleY) {
+
+		    data.pathDataPoints = api.getPathData(init.data.getBounds(scaleX, scaleY));
+
+		    return data.pathDataPoints;
+		};
+
+		init.data.getBarData = function (scaleX, key) {
+
+		    var r = scaleX.range(),
+		        slsg = _dd3.position('svg', 'local', 'svg', 'global'),
+		        limit = {};
+		    limit.min = d3.bisect(r, slsg.left(0));
+		    limit.max = d3.bisect(r, slsg.left(browser.width));
+
+		    data.barDataPoints = api.getBarData(limit, key);
+
+		    return data.barDataPoints;
 		};
 		
 		return init;
@@ -385,22 +412,10 @@ var dd3 = (function () {
 	 */
 	
 	var launch = function () {
-		
-	    /**
-         * Create the svg and provide it for use
-         */
-
-	    _dd3.svgCanvas = d3.select("body").append("svg")
-		    .attr("width", browser.width)
-		    .attr("height", browser.height)
-		    .append("g")
-		    .attr("transform", "translate(" + [browser.margin.left, browser.margin.top] + ")");
 
 		/**
 		 * dd3.position
 		 */
-
-	    // TO-DO
 
 		function sumWith(s, sign) {
 		    return function (x) { return x + sign*s;};
@@ -441,9 +456,20 @@ var dd3 = (function () {
         // Most used functions already computed ... time saving !
 		var hghl = _dd3.position('html', 'global', 'html', 'local'),
             hlhg = _dd3.position('html', 'local', 'html', 'global'),
+            hlsg = _dd3.position('html', 'local', 'svg', 'global'),
 		    sghg = _dd3.position('svg', 'global', 'html', 'global'),
 	        slsg = _dd3.position('svg', 'local', 'svg', 'global');
-			
+	    
+	    /**
+         * Create the svg and provide it for use
+         */
+
+		_dd3.svgCanvas = d3.select("body").append("svg")
+		    .attr("width", browser.width)
+		    .attr("height", browser.height)
+		    .append("g")
+		    .attr("transform", "translate(" + [browser.margin.left - slsg.left(0), browser.margin.top - slsg.top(0)] + ")");
+
 		/**
 		 * Hook helper functions for d3
 		 */
@@ -547,8 +573,44 @@ var dd3 = (function () {
 		* dd3.selection
 		*/
 
+		var d3_attr = d3.selection.prototype.attr;
+
 		_dd3.selection = d3.selection;
-		
+        /*
+		_dd3.selection.prototype.attr = function () {
+		    
+            var selection = d3_attr.apply(this, arguments);
+
+            if (arguments.length < 2)
+                return selection;
+
+		    if (arguments[0] == "transform") {
+		        this.select(function () {
+		            var g = d3.select(this),
+		                t = d3_attr.call(g, "transform"),
+                        c = getRotationCenter(t);
+
+		            if (c !== null) {
+
+		                if (isNaN(c[0])) {
+		                    c[0] = 0;
+                            c[1] = 0;
+		                }
+
+		                var parentCTM = getContainingGroup(this).getCTM();
+
+		                c[0] = hlsg.left(c[0] + parentCTM.e);
+		                c[1] = hlsg.top(c[1] + parentCTM.f);
+		                d3_attr.call(g, "transform", setRotationCenter(t, c));
+                    }
+
+		        });
+		    }
+
+		    return selection;
+
+		};
+		*/
 		//Now we can change any function used with selections & even add some
 		
 		var findDest = function (el) {
@@ -649,7 +711,7 @@ var dd3 = (function () {
 		
 		_dd3.dataPoints = function () { return data.dataPoints.slice(); };
 		
-		_dd3.dataDimensions = function () { return extend({}, data.dataDimensions); };
+		_dd3.dataDimensions = function (bar) { initializer.getDataDimensions(bar); return extend({}, data.dataDimensions); };
 		
 		_dd3.peers = function () { return extend({}, peer); };
 		
@@ -657,7 +719,11 @@ var dd3 = (function () {
 		
 		_dd3.browser = function () { return extend({}, browser);};
 		
-		_dd3.getData = initializer.getData;
+		_dd3.getData = initializer.data.getData;
+
+		_dd3.getPathData = initializer.data.getPathData;
+
+		_dd3.getBarData = initializer.data.getBarData;
 		
 		_dd3.state = function () { return state(); };
 		

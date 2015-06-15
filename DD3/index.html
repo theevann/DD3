@@ -36,24 +36,27 @@ body {
 
     dd3.on('ready', function () {
 	    var dim = dd3.dataDimensions();
-	    var extent = dim.xmax - dim.xmin, coef = 0., c = 1;
-	    var xDomain = [dim.xmin - coef * extent - c, dim.xmax + coef * extent + c];
-	    var yDomain = [dim.ymin - coef * extent - c, dim.ymax + coef * extent + c];
+	    var extent = dim.x.max - dim.x.min, coef = 0., c = 1;
+	    var xDomain = [dim.x.min - coef * extent - c, dim.x.max + coef * extent + c];
+	    var yDomain = [dim.y.min - coef * extent - c, dim.y.max + coef * extent + c];
 
 	    // setup x
-	    var xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]).toLocalLeft(),
-		    xAxis = dd3.svg.axis().scale(xScale).orient("bottom");
+	    var xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]),
+	        //xScale = dd3.scale.linear().range([0, dd3.cave().svgWidth]).toLocalLeft(),
+		    xAxis = d3.svg.axis().scale(xScale).orient("bottom");
 
 	    // setup y
-	    var yScale = dd3.scale.linear().range([dd3.cave().svgHeight, 0]).toLocalTop(),
-		    yAxis = dd3.svg.axis().scale(yScale).orient("left");
+	    var yScale = dd3.scale.linear().range([dd3.cave().svgHeight, 0]),
+	        //yScale = dd3.scale.linear().range([dd3.cave().svgHeight, 0]).toLocalTop(),
+		    yAxis = d3.svg.axis().scale(yScale).orient("left");
 
 	    xScale.domain(xDomain);
 	    yScale.domain(yDomain);
 
 	    var data = dd3.getData(xScale, yScale);
+	    var pathData = dd3.getPathData(xScale, yScale);
 
-	    var svg = dd3.svgCanvas.data([data]);
+	    var svg = dd3.svgCanvas;
 
 	    //*
 	    // x-axis
@@ -80,26 +83,27 @@ body {
 	      .attr("dy", ".71em")
 	      .style("text-anchor", "end")
 	      .text("Y axis");
+
         //*
 	    var rGroup = svg.append('g').attr("id", "myRect");
 	    var pGroup = svg.append('g').attr("id", "myPoly");
 
-	    if (dd3.browser().initRow == 1 && dd3.browser().initColumn == 12) {
+	    if (dd3.browser().row == 0 && dd3.browser().column == 0) {
 	        rGroup
                 .append('rect')
                 .attr("x", xScale(3))
                 .attr("y", yScale(1))
                 .attr("width", xScale(15) - xScale(3))
                 .attr("height", yScale(0) - yScale(2))
-                .attr("transform","rotate(30)scale(1.5)")
+                .attr("transform", "rotate(30 " + [xScale(3), yScale(1)] + ")scale(1)")
                 .attr("stroke", "black")
                 .attr("fill", "rgb(29, 219, 29)")
                 .send();
-	    } else if (dd3.browser().initRow == 1 && dd3.browser().initColumn == 11){
+	    } else if (dd3.browser().row == 1 && dd3.browser().column == 1){
 	        pGroup
                .append('polygon')
                .attr("points", "50 160 55 180 70 180 60 190 65 205 50 195 35 205 40 190 30 180 45 180")
-               .attr("transform", " scale(6) translate(50, -180)")
+               .attr("transform", " scale(6) translate(50, -100)")
                .attr("stroke", "orange")
                .attr("stroke-width", "4")
                .attr("fill", "transparent")
@@ -109,9 +113,9 @@ body {
 	    }
         //*/
 
-	    // draw dots
+	    // Draw dots
 	    svg.selectAll(".dot")
-	      .data(function (d) { return d; })
+	      .data(data)
 	    .enter()
           .append("g")
           .append("circle")
@@ -128,11 +132,12 @@ body {
 	            .y(function (d) { return yScale(d['y']); })
 	            .interpolate("monotone");
 
-	    svg.append("path")
-	        .attr("d", lineFunction(data))
+	    svg.append("path").datum(pathData)
+	        .attr("d", lineFunction)
 	        .attr("stroke", "blue")
 	        .attr("stroke-width", 2)
 	        .attr("fill", "none");
+          //.send();
 	  
 	    //*/
     });

@@ -18,13 +18,14 @@ function d (k, p) {
 
 //Not exactly what I need, to improve :)
 function extend (base, extension) {
-  if (arguments.length > 2) 
+  if (arguments.length > 2) {
   	[].forEach.call(arguments, function (extension) { 
  	 	extend(base, extension) 
  	})
-  else 
-  	for (var k in extension) 
-  		base[k] = extension[k]
+  } else {
+      for (var k in extension)
+          base[k] = extension[k];
+  }
   return base;
 }
 
@@ -85,6 +86,17 @@ function getIdentifiedContainer(el, returnElement) {
     return container;
 }
 
+function getContainingGroup(el) {
+    var container;
+
+    while (!container && (el = el.parentNode)) {
+        if (el.nodeName.toLowerCase() === 'g')
+            container = el;
+    }
+
+    return container;
+}
+
 function copyCTMFromTo(original, copy) {
     copy.a = original.a;
     copy.b = original.b;
@@ -92,4 +104,14 @@ function copyCTMFromTo(original, copy) {
     copy.d = original.d;
     copy.e = original.e;
     copy.f = original.f;
+}
+
+function getRotationCenter(t) {
+    var c = /rotate\([\s]*[\d.]+(?:[\s,]+([\d.]+)[\s,]+([\d.]+))*[\s,]*\)/.exec(t);
+    return c === null ? c : [+c[1], +c[2]];
+}
+
+function setRotationCenter(t, c) {
+    var t2 = t.replace(/rotate\([\s]*([\d.]+)(?:[\s,]+([\d.]+)[\s,]+([\d.]+))*[\s,]*\)/, "rotate($1," + c + ")");
+    return t2;
 }

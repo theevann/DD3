@@ -86,6 +86,10 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="all.html" />
+    <Content Include="All2.html">
+      <BrowseToURL>~/all2.html</BrowseToURL>
+    </Content>
+    <Content Include="graph.html" />
     <Content Include="index.html">
       <BrowseToURL>~/index.html%3fcol=0&amp;row=0</BrowseToURL>
     </Content>

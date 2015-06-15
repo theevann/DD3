@@ -1,0 +1,103 @@
+﻿
+<html>
+<meta charset="utf-8">
+<style>
+    body {
+        font: 11px sans-serif;
+        padding: 0px;
+        margin: 0px;
+    }
+
+    .axis path,
+    .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+    }
+
+    .dot {
+        stroke: #000;
+    }
+</style>
+<body>
+
+    <script src="Scripts/d3.js"></script>
+    <script src="Scripts/peer.js"></script>
+    <script src="Scripts/jquery-1.10.2.min.js"></script>
+    <script src="Scripts/jquery.signalR-2.2.0.min.js"></script>
+    <script src="signalr/hubs"></script>
+
+    <script src="Scripts/utils.js"></script>
+    <script src="Scripts/api.js"></script>
+    <script src="Scripts/dd3.v0.js"></script>
+
+    <script>
+
+    dd3.on('ready', function () {
+	    var dim = dd3.dataDimensions(true);
+	    var extent = dim.gdp.max - dim.gdp.min, coef = 0.2, c = 0;
+	    var xDomain = d3.range(dim.length);
+	    var yDomain = [0, +dim.gdp.max + coef * extent + c];
+
+	    // setup x
+        var xRange = dd3.scale.ordinal().rangeBands([0, dd3.cave().svgWidth], 0.2),
+		    xAxis = d3.svg.axis().scale(xRange).orient("bottom");
+
+	    // setup y
+	    var yScale = dd3.scale.linear().range([dd3.cave().svgHeight, 0]),
+		    yAxis = d3.svg.axis().scale(yScale).orient("left");
+
+	    xRange.domain(xDomain);
+	    yScale.domain(yDomain);
+
+	    var barData = dd3.getBarData(xRange, 'gdp');
+	    var svg = dd3.svgCanvas;
+
+	    barData.forEach(function (d) { xDomain[d.order] = d.country; });
+
+	    xRange.domain(xDomain);
+
+	    svg.append("g")
+	      .attr("class", "x axis")
+	      .attr("transform", "translate(" + [0, dd3.cave().svgHeight] + ")")
+	      .call(xAxis)
+	    .append("text")
+	      .attr("class", "label")
+	      .attr("x", dd3.cave().svgWidth)
+	      .attr("y", -6)
+	      .style("text-anchor", "end")
+	      .text("Countries");
+
+	    svg.append("g")
+	      .attr("class", "y axis")
+	      .attr("transform", "translate(" + [0, 0] + ")")
+	      .call(yAxis)
+	    .append("text")
+	      .attr("class", "label")
+	      .attr("transform", "rotate(-90)")
+	      .attr("y", 6)
+	      .attr("dy", ".71em")
+	      .style("text-anchor", "end")
+	      .text("GDP");
+
+	    svg.selectAll('rect')
+          .data(barData)
+          .enter()
+          .append('rect')
+          .attr('x', function (d) { return xRange(d.country); })
+          .attr('y', function (d) {
+              return (yScale(d.gdp));
+          })
+          .attr('width', xRange.rangeBand())
+          .attr('height', function (d) {
+              return (yScale(0) - yScale(d.gdp));
+          })
+          .attr('fill', 'grey')
+          .attr('stroke', 'black')
+          .attr('stroke-width', '2')
+          .send();
+
+    });
+    </script>
+</body>
+</html>
