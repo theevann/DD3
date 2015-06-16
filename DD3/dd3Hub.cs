@@ -22,16 +22,21 @@ namespace dd3
             return base.OnConnected();
         }
 
-        public void updateInformation (BrowserInfo b)
-        {
-            _dd3Server.newClient(Context.ConnectionId, b);
-        }
-
         public override System.Threading.Tasks.Task OnDisconnected(Boolean b)
         {
             return base.OnDisconnected(b);
         }
 
+
+        public void updateInformation (BrowserInfo b)
+        {
+            _dd3Server.newClient(Context.ConnectionId, b);
+        }
+
+        public void synchronize(int sid)
+        {
+            _dd3Server.synchronize(sid);
+        }
 
     }
 }

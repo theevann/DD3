@@ -13,20 +13,18 @@ namespace dd3
             () => new dd3Server(GlobalHost.ConnectionManager.GetHubContext<dd3Hub>().Clients, GlobalHost.ConnectionManager.GetHubContext<dd3Hub>().Groups));
 
         private static List<ConcurrentDictionary<string, BrowserInfo>> browserList = new List<ConcurrentDictionary<string, BrowserInfo>>();
+        private static ConcurrentDictionary<int, int> syncDic = new ConcurrentDictionary<int, int>();
         private static int currentSession = 0;
 
         private readonly object _locker = new Object();
         private Timer _timerToStart;
         private readonly TimeSpan _timeLimitConnect = TimeSpan.FromSeconds(3);
-        private IHubConnectionContext<dynamic> hubConnectionContext;
-        private IGroupManager groupManager;
         
         private dd3Server(IHubConnectionContext<dynamic> clients, IGroupManager groups)
         {
             Clients = clients;
             Groups = groups;
         }
-
 
         public static dd3Server Instance
         {
@@ -82,10 +80,20 @@ namespace dd3
             }
 
             String browserInfoJson = Newtonsoft.Json.JsonConvert.SerializeObject(browserInfos);
-            Clients.Group((currentSession-1) + "").receiveConfiguration(browserInfoJson);
+            Clients.Group((currentSession-1) + "").receiveConfiguration(currentSession - 1, browserInfoJson);
 
         }
 
+        public void synchronize(int sid)
+        {
+            syncDic.AddOrUpdate(sid, browserList[sid].Count-1, (key, value) => value - 1);
+            if (syncDic[sid] == 0)
+            {
+                Clients.Group(sid + "").synchronize();
+                int v = 0;
+                syncDic.TryRemove(sid, out v);
+            }
+        }
     }
 
     public class BrowserBroadcastInfo
