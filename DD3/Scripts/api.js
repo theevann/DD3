@@ -5,7 +5,7 @@ var uid = 0;
 //api.dataPoints = d3.range(0, 26, 0.8).map(function (d) { return { id: uid++, x: d, y: Math.cos(d) }; });
 api.dataPoints = d3.range(-10, 15, 0.5).map(function (d) { return { id: uid++, x: d, y: d*d }; });
 //api.dataPoints = [{ x: 1, y: 2 }, { x: 4.5, y: 3.3 }, { x: 1, y: 5 }, { x: 8, y: 2 }]
-api.barDataPoints = [{ country: "England", gdp: "150" }, { country: "France", gdp: "120" }, { country: "Germany", gdp: "160" }, { country: "Spain", gdp: "110" }]
+api.barDataPoints = [/*{ country: "USA", gdp: "17.4" }, { country: "China", gdp: "10.3" }, */{ country: "England", gdp: "2.9" }, { country: "France", gdp: "2.8" }, { country: "Germany", gdp: "3.8" }, { country: "Japan", gdp: "4.6" }]
 
 api.getConf;
 
@@ -41,7 +41,9 @@ api.getData = function (limit) {
 
 var sorter = function (_) {
     return function (a, b) {
-        return a[_] - b[_];
+        a[_] = +a[_] ? +a[_] : a[_];
+        b[_] = +b[_] ? +b[_] : b[_];
+        return a[_] > b[_] ? 1 : a[_] < b[_] ? -1 : 0;
     }
 };
 
