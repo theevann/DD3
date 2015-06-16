@@ -36,6 +36,12 @@ var dd3 = (function () {
 	
 	var data = {};
 	
+	var signalR = {
+	    server: null,
+	    client: null,
+	    syncCallback: function () { }
+	};
+
 	var peer = {
 		id : null,
 		peers : [],
@@ -133,7 +139,7 @@ var dd3 = (function () {
                 var f = _dd3.position('html', 'global', 'html', 'local'),
                     svg = d3.select("svg"), // To-Do : Make sure to select the right svg if many ... 
                     g = d3.select(data.container);
-                        
+                
 		        // If id of the container doesn't exist in the receiver dom, take 'svg g' instead
                 g = g.empty() ? svg.select("g") : g;
 
@@ -152,11 +158,21 @@ var dd3 = (function () {
                 // by the container group transform attribute.
                 ctm = gCtm.inverse().multiply(ctm);
 
-                // Make it clean by appending the svg object into a group to which we apply the transformation
-			    g.append("g")
-                    .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-                    .append(data.name)
-                    .attr(data.attr);
+                var obj;
+                if((obj = d3.select("#" + data.sendId)).empty()) {
+
+                    // Make it clean by appending the svg object into a group to which we apply the transformation
+                    g.append("g")
+                        .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
+                        .append(data.name)
+                        .attr(data.attr)
+                        .attr("id", data.sendId);
+                
+                } else {
+                    g = d3.select(getContainingGroup(obj.node()));
+                    g.attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
+                    obj.attr(data.attr);
+                }
 			};
 
 			var dataReceiver = function (data) {
@@ -241,7 +257,13 @@ var dd3 = (function () {
 		init.connectToSignalRServer = function () {
 		    var dd3Server = $.connection.dd3Hub;
 
+		    signalR.server = dd3Server.server;
+		    signalR.client = dd3Server.client;
+
 		    dd3Server.client.receiveConfiguration = init.getCaveConfiguration;
+		    dd3Server.client.synchronize = function () {
+                signalR.syncCallback.apply(null)
+		    };
 
 		    $.connection.hub.error(function (error) {
 		        console.log('SignalR error: ' + error)
@@ -266,9 +288,10 @@ var dd3 = (function () {
 			});
 		};
 		
-		init.getCaveConfiguration = function (obj) {
+		init.getCaveConfiguration = function (sid, obj) {
 			log("Receiving connected browsers' ids from signalR server", 1);
 			
+			signalR.sid = sid;
 			var peersInfo = JSON.parse(obj);
 			var maxCol, minCol, maxRow, minRow;
 			
@@ -389,15 +412,29 @@ var dd3 = (function () {
 		    return data.pathDataPoints;
 		};
 
-		init.data.getBarData = function (scaleX, key) {
+		init.data.getBarData = function (scale, key, orientation) {
 
-		    var r = scaleX.range(),
-		        slsg = _dd3.position('svg', 'local', 'svg', 'global'),
+		    orientation = orientation || "bottom";
+
+		    var r = scale.range(),
+		        slsg = _dd3.position('svg', 'local', 'svg', 'global')[orientation === "bottom" || orientation === "top" ? 'left' : 'top'],
 		        limit = {};
-		    limit.min = d3.bisect(r, slsg.left(0));
-		    limit.max = d3.bisect(r, slsg.left(browser.width));
 
-		    data.barDataPoints = api.getBarData(limit, key);
+		    // To improve ...
+		    data.barDataPoints = [];
+
+		    if (orientation === "bottom" && browser.row === cave.rows - 1 ||
+                orientation === "top" && browser.row === 0 ||
+                orientation === "left" && browser.column === 0 ||
+                orientation === "right" && browser.column === cave.column - 1) {
+
+		        //To improve... some bars might not be displayed
+
+		        limit.min = d3.bisect(r, slsg(0) - scale.rangeBand() / 2);
+		        limit.max = d3.bisect(r, slsg(browser[orientation === "bottom" || orientation === "top" ? 'width' : 'height']) - scale.rangeBand() / 2);
+
+		        data.barDataPoints = api.getBarData(limit, key);
+		    }
 
 		    return data.barDataPoints;
 		};
@@ -506,6 +543,23 @@ var dd3 = (function () {
 			}
 		};
 		
+	    /**
+         * dd3.synchronize
+         */
+
+		_dd3.synchronize = (function () {
+		    var nop = function () {};
+            
+		    return function (_) {
+		        _ = typeof _ === "function" ? _ : nop;
+		        signalR.syncCallback = function () {
+		            log("Synchronized !", 0);
+		            _();
+		        }
+		        signalR.server.synchronize(signalR.sid);
+		    }
+		})();
+
 		/**
 		 * dd3.scale
 		 */
@@ -576,41 +630,7 @@ var dd3 = (function () {
 		var d3_attr = d3.selection.prototype.attr;
 
 		_dd3.selection = d3.selection;
-        /*
-		_dd3.selection.prototype.attr = function () {
-		    
-            var selection = d3_attr.apply(this, arguments);
 
-            if (arguments.length < 2)
-                return selection;
-
-		    if (arguments[0] == "transform") {
-		        this.select(function () {
-		            var g = d3.select(this),
-		                t = d3_attr.call(g, "transform"),
-                        c = getRotationCenter(t);
-
-		            if (c !== null) {
-
-		                if (isNaN(c[0])) {
-		                    c[0] = 0;
-                            c[1] = 0;
-		                }
-
-		                var parentCTM = getContainingGroup(this).getCTM();
-
-		                c[0] = hlsg.left(c[0] + parentCTM.e);
-		                c[1] = hlsg.top(c[1] + parentCTM.f);
-		                d3_attr.call(g, "transform", setRotationCenter(t, c));
-                    }
-
-		        });
-		    }
-
-		    return selection;
-
-		};
-		*/
 		//Now we can change any function used with selections & even add some
 		
 		var findDest = function (el) {
@@ -652,6 +672,7 @@ var dd3 = (function () {
 
 		_dd3.selection.prototype.send = (function () {
 		    var m = d3.select('svg').node().createSVGMatrix();
+		    var sendId = 0;
 
 		    return function () {
 		        var counter = 0, dest;
@@ -667,13 +688,16 @@ var dd3 = (function () {
 		                        name: '',
 		                        attr: null,
 		                        ctm: null,
+                                sendId: null,
 		                        container: ""
 		                    };
 
                         // Get all attributes from current SVG object
 		                obj.attr = getAttr(this);
 		                obj.name = this.nodeName;
-                    
+		                this.__sendId__ = typeof this.__sendId__ === "undefined" ? sendId++ : this.__sendId__;
+		                obj.sendId = "dd3_" + browser.row + browser.column + "_" + this.__sendId__;
+
 		                // Make the translation parameter global to send it to others
 		                ctm.e = hlhg.left(ctm.e);
 		                ctm.f = hlhg.top(ctm.f);
@@ -891,3 +915,39 @@ _dd3.selection.prototype.send = function () {
     return this;
 };
 //*/
+
+/*
+_dd3.selection.prototype.attr = function () {
+    
+    var selection = d3_attr.apply(this, arguments);
+
+    if (arguments.length < 2)
+        return selection;
+
+    if (arguments[0] == "transform") {
+        this.select(function () {
+            var g = d3.select(this),
+                t = d3_attr.call(g, "transform"),
+                c = getRotationCenter(t);
+
+            if (c !== null) {
+
+                if (isNaN(c[0])) {
+                    c[0] = 0;
+                    c[1] = 0;
+                }
+
+                var parentCTM = getContainingGroup(this).getCTM();
+
+                c[0] = hlsg.left(c[0] + parentCTM.e);
+                c[1] = hlsg.top(c[1] + parentCTM.f);
+                d3_attr.call(g, "transform", setRotationCenter(t, c));
+            }
+
+        });
+    }
+
+    return selection;
+
+};
+*/
