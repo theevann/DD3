@@ -65,7 +65,7 @@
 	      .attr("class", "label")
 	      .attr("x", dd3.cave().svgWidth)
 	      .attr("y", -6)
-	      .style("text-anchor", "end")
+	      .style("text-anchor", "middle")
 	      .text("Countries");
 
 	    svg.append("g")
@@ -92,10 +92,27 @@
           .attr('height', function (d) {
               return (yScale(0) - yScale(d.gdp));
           })
-          .attr('fill', 'grey')
+          .attr('fill', 'steelblue')
           .attr('stroke', 'black')
           .attr('stroke-width', '2')
           .send();
+
+        var color = d3.scale.category20(),
+            i = 0;
+
+        dd3.synchronize(function () {
+
+            setInterval(function () {
+                svg.selectAll('rect')
+                  .data(barData)
+                  .attr('fill', function () { return color(i); })
+                  .attr('stroke', 'black')
+                  .attr('stroke-width', '2')
+                  .send();
+                i++;
+            }, 10000);
+
+        });
 
     });
     </script>
