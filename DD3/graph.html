@@ -103,16 +103,23 @@
         dd3.synchronize(function () {
 
             setInterval(function () {
+                var randomGDP = dim.gdp.max * Math.random();
                 svg.selectAll('rect')
                   .data(barData)
                   .attr('fill', function () { return color(i); })
+                  .attr('y', function (d) {
+                      return (yScale(randomGDP));
+                  })
+                  .attr('height', function (d) {
+                      return (yScale(0) - yScale(randomGDP));
+                  })
                   .attr('stroke', 'black')
                   .attr('stroke-width', '2')
                   .send();
                 i++;
-            }, 10000);
+            }, 2000);
 
-        });
+        }, 1000);
 
     });
     </script>

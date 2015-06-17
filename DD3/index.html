@@ -84,10 +84,10 @@ body {
 	      .style("text-anchor", "end")
 	      .text("Y axis");
 
-        //*
+        /*
 	    var rGroup = svg.append('g').attr("id", "myRect");
 	    var pGroup = svg.append('g').attr("id", "myPoly");
-
+        
 	    if (dd3.browser().row == 0 && dd3.browser().column == 0) {
 	        rGroup
                 .append('rect')
@@ -120,7 +120,7 @@ body {
           .append("g")
           .append("circle")
 	      .attr("class", "dot")
-	      .attr("r", 7)
+	      .attr("r", 4)
 	      .attr("cx", function (d) { return xScale(d['x']); })
 	      .attr("cy", function (d) { return yScale(d['y']); })
 	      .style("fill", function (d, i) { return "black"; })
@@ -131,7 +131,7 @@ body {
 	            .x(function (d) { return xScale(d['x']); })
 	            .y(function (d) { return yScale(d['y']); })
 	            .interpolate("monotone");
-
+        /*
 	    svg.append("path").datum(pathData)
 	        .attr("d", lineFunction)
 	        .attr("stroke", "blue")
