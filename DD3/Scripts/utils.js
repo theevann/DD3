@@ -16,7 +16,8 @@ function d (k, p) {
 	return function (d) { return p ? +d[k] : d[k];};
 };
 
-//Not exactly what I need, to improve :)
+// Not exactly what I need, to improve :)
+// Basic extend
 function extend (base, extension) {
   if (arguments.length > 2) {
   	[].forEach.call(arguments, function (extension) { 
@@ -28,6 +29,25 @@ function extend (base, extension) {
   }
   return base;
 }
+
+// Basic clone
+function clone(source) {
+    var destination;
+    if (source instanceof Array) {
+        destination = [];
+    } else {
+        destination = {};
+    }
+
+    for (var property in source) {
+        if (typeof source[property] === "object" && source[property] !== null) {
+            destination[property] = clone(source[property]);
+        } else {
+            destination[property] = source[property];
+        }
+    }
+    return destination;
+};
 
 function log (message, sev) {
 	var sevMessage = ["Debug", "Info", "Warning", "Error", "Critical"];
@@ -105,6 +125,8 @@ function copyCTMFromTo(original, copy) {
     copy.e = original.e;
     copy.f = original.f;
 }
+
+// Keeped for memory for now, will probably be deleted as not needed
 
 function getRotationCenter(t) {
     var c = /rotate\([\s]*[\d.]+(?:[\s,]+([\d.]+)[\s,]+([\d.]+))*[\s,]*\)/.exec(t);
