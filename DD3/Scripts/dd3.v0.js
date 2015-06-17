@@ -169,8 +169,9 @@ var dd3 = (function () {
 
 			});
 
-			peer.sendTo = function (r, c, data) {
-			    var conn;
+			peer.sendTo = function (r, c, d) {
+			    var data = clone(d),
+			        conn;
 
 			    var callback = function (c) {
 			        c.send(data);
@@ -180,7 +181,7 @@ var dd3 = (function () {
 
 			        var check = peer.peers.some(function (p) {
 			            if (+p.col === +c && +p.row === +r) {
-			                var conn = peer.peer.connect(p.peerId);
+			                var conn = peer.peer.connect(p.peerId, {reliable : true});
                             conn.on("open", connect.bind(null, conn, callback));
 			                return true;
 			            }
@@ -281,7 +282,6 @@ var dd3 = (function () {
 			browser.svgWidth = Math.max(browser.width - browser.margin.left - browser.margin.right, 0);
 			browser.svgHeight = Math.max(browser.height - browser.margin.top - browser.margin.bottom, 0);
 			
-			//setTimeout(launch, 3000);
 			launch();
 		};
 		
@@ -461,6 +461,12 @@ var dd3 = (function () {
 
 	    var plotter = function (data) {
 
+	        if (data.action === "exit") {
+	            var o = d3.select("#" + data.sendId);
+	            if (!o.empty())
+	                o.remove();
+	        }
+
             var svg = d3.select("svg"), // To-Do : Make sure to select the right svg if many ... 
                 g = d3.select(data.container);
 
@@ -553,11 +559,11 @@ var dd3 = (function () {
 		_dd3.synchronize = (function () {
 		    var nop = function () {};
             
-		    return function (_) {
+		    return function (_, t) {
 		        _ = typeof _ === "function" ? _ : nop;
 		        signalR.syncCallback = function () {
 		            log("Synchronized !", 0);
-		            _();
+		            setTimeout(_, t || 0);
 		        }
 		        signalR.server.synchronize(signalR.sid);
 		    }
@@ -636,15 +642,52 @@ var dd3 = (function () {
 
 		//Now we can change any function used with selections & even add some
 		
-		var findDest = function (el) {
+		var _dd3_getSelections = function (newSelection, oldSelection) {
+		    var ns = newSelection.slice(),
+		        os = oldSelection.slice();
+
+		    var enter = [],
+                update = [],
+                exit = [],
+		        i;
+
+		    var contain = function (a, v) {
+		        var r = -1;
+		        a.some(function (d, i) {
+		            if (d[0] === v[0] && d[1] === v[1]) {
+		                r = i;
+		                return true;
+		            }
+		            return false;
+		        });
+		        return r;
+		    }
+
+		    ns.forEach(function (d) {
+		        if ((i = contain(os, d)) >= 0) {
+		            update.push(os.splice(i, 1)[0]);
+		        }
+		        else {
+		            enter.push(d);
+		        }
+		    });
+
+		    os.forEach(function (d) {
+		        exit.push(d);
+		    });
+
+		    return [enter, update, exit];
+		}
+
+        var _dd3_findDest = function (el) {
 		    var dest = [];
 		    var rect = el.getBoundingClientRect();
 
 		    if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) {
 		        var f = hlhg,
-                    topLeft = findBrowserAt(f.left(rect.left), f.top(rect.top), 'html'),
-		            topRight = findBrowserAt(f.left(rect.right), f.top(rect.top), 'html'),
-		            bottomLeft = findBrowserAt(f.left(rect.left), f.top(rect.bottom), 'html');
+                    topLeft = _dd3_findBrowserAt(f.left(rect.left), f.top(rect.top), 'html'),
+		            topRight = _dd3_findBrowserAt(f.left(rect.right), f.top(rect.top), 'html'),
+		            bottomLeft = _dd3_findBrowserAt(f.left(rect.left), f.top(rect.bottom), 'html');
 
 		        for (var i = Math.max(topLeft[0], 0), maxR = Math.min(bottomLeft[0], cave.rows - 1) ; i <= maxR ; i++) {
 		            for (var j = Math.max(topLeft[1], 0), maxC = Math.min(topRight[1], cave.columns - 1) ; j <= maxC; j++) { //Check to simplify
@@ -658,7 +701,7 @@ var dd3 = (function () {
 		    return dest;
 		};
 
-		var findBrowserAt = function (left, top, context) {
+		var _dd3_findBrowserAt = function (left, top, context) {
 		    context = context || 'svg';
 
 		    if (context === "svg") {
@@ -682,24 +725,28 @@ var dd3 = (function () {
 
 		        this.select(function (d, i) {
 		            
-		            if ((dest = findDest(this)).length > 0) {
+		            dest = _dd3_findDest(this);
 
-		                var idContainer = getIdentifiedContainer(this, false),
-                            ctm = this.getCTM(),
-		                    obj = {	// Create a new object to send
-		                        type: 'shape',
-		                        name: '',
-		                        attr: null,
-		                        ctm: null,
-                                sendId: null,
-		                        container: ""
-		                    };
+		            var idContainer = getIdentifiedContainer(this, false),
+                        ctm = this.getCTM(),
+		                obj = {	// Create a new object to send
+		                    type: 'shape',
+                            action: '',
+		                    name: '',
+		                    attr: null,
+		                    ctm: null,
+                            sendId: null,
+		                    container: ""
+		                };
 
-                        // Get all attributes from current SVG object
+		            var formerRecipients = typeof this.__recipient__ === "undefined" ? [] : this.__recipient__;
+		            var selections = _dd3_getSelections(dest, formerRecipients);
+		            this.__recipient__ = dest;
+		           
+		            if (dest.length > 0 || formerRecipients.length > 0) {
+		                // Get all attributes from current SVG object
 		                obj.attr = getAttr(this);
 		                obj.name = this.nodeName;
-		                this.__sendId__ = typeof this.__sendId__ === "undefined" ? sendId++ : this.__sendId__;
-		                obj.sendId = "dd3_" + browser.row + browser.column + "_" + this.__sendId__;
 
 		                // Make the translation parameter global to send it to others
 		                ctm.e = hlhg.left(ctm.e);
@@ -707,20 +754,38 @@ var dd3 = (function () {
                     
 		                // Remove any transformation on the object as we handle it with the ctm
 		                obj.attr.transform = null;
-		                //obj.attr.style = "fill:pink;stroke:red";
 
 		                // Matrix CTM not sendable with peer.js, just copy the parameter into a normal object
 		                copyCTMFromTo(ctm, obj.ctm = {});
 		                // Remember the container to keep the drawing order (superposition)
 		                obj.container = idContainer;
-		           
-		                // Send it to all who may have to plot it
-		                dest.forEach(function (d) {
-		                    peer.sendTo(d[0], d[1], obj);
-		                    counter++;
-		                });
 
+		                this.__sendId__ = typeof this.__sendId__ === "undefined" ? sendId++ : this.__sendId__;
+		                obj.sendId = "dd3_" + browser.row + browser.column + "_" + this.__sendId__;
 		            }
+
+		            // Send it to all who may have to plot it
+
+		            // Do something special for enter selection = new recipients
+		            obj.action = 'enter';
+		            selections[0].forEach(function (d) {
+		                peer.sendTo(d[0], d[1], obj);
+		                counter++;
+		            });
+
+		            // Do something special for update selection = former recipients
+		            obj.action = 'update';
+                    selections[1].forEach(function (d) {
+		                peer.sendTo(d[0], d[1], obj);
+		                counter++;
+		            });
+
+		            // Do something special for exit selection = old (no longer) recipients
+                    obj.action = 'exit';
+                    selections[2].forEach(function (d) {
+		                peer.sendTo(d[0], d[1], obj);
+		                counter++;
+		            });
 
 		            // We may chose to return only sent objects ... to be decided later
 		            return this;
