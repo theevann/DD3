@@ -86,7 +86,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="all.html" />
-    <Content Include="All2.html">
+    <Content Include="allGraph.html">
       <BrowseToURL>~/all2.html</BrowseToURL>
     </Content>
     <Content Include="graph.html" />

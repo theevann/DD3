@@ -45,7 +45,8 @@ var dd3 = (function () {
 	var peer = {
 		id : null,
 		peers : [],
-		connections: []
+		connections: [],
+		dataReceiver: function () { }
 	};
 
 	var cave = {
@@ -134,58 +135,6 @@ var dd3 = (function () {
 
 		    var p = peer.peer = new Peer({ key: 'x7fwx2kavpy6tj4i', debug: 0 });
 			
-			var plotter = function (data) {
-
-                var f = _dd3.position('html', 'global', 'html', 'local'),
-                    svg = d3.select("svg"), // To-Do : Make sure to select the right svg if many ... 
-                    g = d3.select(data.container);
-                
-		        // If id of the container doesn't exist in the receiver dom, take 'svg g' instead
-                g = g.empty() ? svg.select("g") : g;
-
-                // Get the group container ctm and create a new matrix for the incoming svg object
-                var gCtm = g.node().getCTM(),
-                    ctm = svg.node().createSVGMatrix();
-
-                // Convert the global translate parameter to local one
-                data.ctm.e = f.left(+data.ctm.e);
-                data.ctm.f = f.top(+data.ctm.f);
-
-                // ctm = data.ctm
-                copyCTMFromTo(data.ctm, ctm);
-			    // The svg object will be placed in the group. To keep its position and orientation,
-			    // we applied the inverse transformation of the one that will be applied to it
-                // by the container group transform attribute.
-                ctm = gCtm.inverse().multiply(ctm);
-
-                var obj;
-                if((obj = d3.select("#" + data.sendId)).empty()) {
-
-                    // Make it clean by appending the svg object into a group to which we apply the transformation
-                    g.append("g")
-                        .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-                        .append(data.name)
-                        .attr(data.attr)
-                        .attr("id", data.sendId);
-                
-                } else {
-                    g = d3.select(getContainingGroup(obj.node()));
-                    g.attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-                    obj.attr(data.attr);
-                }
-			};
-
-			var dataReceiver = function (data) {
-			    log("Receiving an object...");
-                
-			    switch (data.type) {
-			        case 'shape':
-			            plotter(data);
-			            break;
-			    }
-
-			};
-
             //To Do, problem of double connection to same peer
 			var connect = function (c, callback) {
 			    log("Connection established with Peer : " + c.peer, 0);
@@ -193,7 +142,7 @@ var dd3 = (function () {
 			    return peer.peers.some(function (p) {
 			        if (p.peerId === c.peer) {
 			            peer.connections[p.row][p.col] = c;
-			            c.on("data", dataReceiver);
+			            c.on("data", function () { peer.dataReceiver.apply(this, arguments); });
 			            callback && callback(c);
 			            return true;
 			        }
@@ -266,11 +215,11 @@ var dd3 = (function () {
 		    };
 
 		    $.connection.hub.error(function (error) {
-		        console.log('SignalR error: ' + error)
+		        console.log('SignalR error: ' + error, 2)
 		    });
 
 		    $.connection.hub.start()
-                .fail(function(){ log('Unable to connect to signalR server'); })
+                .fail(function(){ log('Unable to connect to signalR server', 2); })
                 .done(function () {
                     log("Connected to signalR server", 1);
                     log("Waiting for everyone to connect", 1);
@@ -443,10 +392,7 @@ var dd3 = (function () {
 
 	})();
 	
-	/**
-	 * dataReceiver
-	 * dataHandler
-	 */
+	
 	
 	var launch = function () {
 
@@ -497,6 +443,7 @@ var dd3 = (function () {
 		    sghg = _dd3.position('svg', 'global', 'html', 'global'),
 	        slsg = _dd3.position('svg', 'local', 'svg', 'global');
 	    
+
 	    /**
          * Create the svg and provide it for use
          */
@@ -506,6 +453,62 @@ var dd3 = (function () {
 		    .attr("height", browser.height)
 		    .append("g")
 		    .attr("transform", "translate(" + [browser.margin.left - slsg.left(0), browser.margin.top - slsg.top(0)] + ")");
+
+       /**
+	    * dataReceiver
+	    * dataHandler
+	    */
+
+	    var plotter = function (data) {
+
+            var svg = d3.select("svg"), // To-Do : Make sure to select the right svg if many ... 
+                g = d3.select(data.container);
+
+	        // If id of the container doesn't exist in the receiver dom, take 'svg g' instead
+	        g = g.empty() ? svg.select("g") : g;
+
+	        // Get the group container ctm and create a new matrix for the incoming svg object
+	        var gCtm = g.node().getCTM(),
+                ctm = svg.node().createSVGMatrix();
+
+	        // Convert the global translate parameter to local one
+	        data.ctm.e = hghl.left(+data.ctm.e);
+	        data.ctm.f = hghl.top(+data.ctm.f);
+
+	        // ctm = data.ctm
+	        copyCTMFromTo(data.ctm, ctm);
+	        // The svg object will be placed in the group. To keep its position and orientation,
+	        // we applied the inverse transformation of the one that will be applied to it
+	        // by the container group transform attribute.
+	        ctm = gCtm.inverse().multiply(ctm);
+
+	        var obj;
+	        if ((obj = d3.select("#" + data.sendId)).empty()) {
+
+	            // Make it clean by appending the svg object into a group to which we apply the transformation
+	            g.append("g")
+                    .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
+                    .append(data.name)
+                    .attr(data.attr)
+                    .attr("id", data.sendId);
+
+	        } else {
+	            g = d3.select(getContainingGroup(obj.node()));
+	            g.attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
+	            obj.attr(data.attr);
+	        }
+	    };
+
+	    peer.dataReceiver = function (data) {
+	        log("Receiving an object...");
+
+	        switch (data.type) {
+	            case 'shape':
+	                plotter(data);
+	                break;
+	        }
+
+	    };
 
 		/**
 		 * Hook helper functions for d3
@@ -775,179 +778,3 @@ var dd3 = (function () {
 	
 	return _dd3;
 })();
-
-
-
-//Saving for memory
-/*
-
-init.connectPeers = function () {
-			var id = peer.session + "r" + browser.row + "c" + browser.column;
-			peer.id = id;
-			
-			var p = new Peer(id,{key : 'q35ylav1jljo47vi'});
-			//var p = new Peer(id,{key : 'x7fwx2kavpy6tj4i'});
-			
-			p.on("error", function (e) {
-				var sev;
-				if (e.type === "network" || e.type === "unavailable-id") {
-					log("[Peer] " + e, 4);
-					state("fatal");
-				} else {
-					log("[Peer] " + e, 3);
-				}
-					
-			});
-			
-			var connect = function (c, targetRow, targetColumn, out) {
-				var previous = peer.connections[targetRow][targetColumn],
-					check = (targetRow > browser.row || (targetRow === browser.row && targetColumn > browser.column)) ^ out; // Priority to browser with higher row
-				
-				if (previous && !check){
-					log("No changes !", 0);
-					return;
-				}
-				
-				if (previous)
-					previous.close();
-				else
-					(peer.ready -= 1) == 0 ? state('ready') : "";
-				
-				peer.connections[targetRow][targetColumn] = c;
-				
-				c.on("data", dataReceiver);
-				c.on("close", function () {
-					log("Connection " + (out ? "out" : "in") + " closed with peer " + c.peer, 0);
-					// If it is not a close due to double initialization, (or it is but update hasn't been done yet)
-					// Then remove the connection from the array
-					if (peer.connections[targetRow][targetColumn] == c)
-						peer.connections[targetRow][targetColumn] = false;
-				});
-				c.on("error", function (e) {
-					log("[Connection] " + e, 3);
-				});
-			};
-			
-			var launchConnections = function () {
-				log('Launching Connections');
-				for (var i = 0 ; i < cave.rows ; i++) {
-					for (var j = 0 ; j < cave.columns ; j++) {
-						if (!peer.connections[i][j] && (i != browser.row || j != browser.column)) {
-							var connTemp = p.connect(peer.session + "r" + i + "c" + j);
-							
-							connTemp.on("open", (function (i,j, c) {
-								return function () {
-									log("(initiated) Connected to peer " + c.peer, 0);		
-									connect(c, i, j, true);								
-								}
-							}) (i,j, connTemp));
-							
-						}
-					}
-				}
-			};
-			
-			
-			p.on('open', function (id) {
-				log('Connected to peer server', 1);
-				log('Browser Peer ID : ' + id, 1);
-				
-				p.on('connection', function (c) {
-					log("(incoming) Connected to peer " + c.peer, 0)
-					
-					var pos = new RegExp(peer.session + "r(\\d+)c(\\d+)").exec(c.peer);
-					connect(c, +pos[1], +pos[2], false);
-				});
-				
-				// Prevent from launching all connections if some browsers have already sent their request (reduce traffic) :
-				// Give time to the 'on' connection handling function to handle already incoming connections
-				setTimeout(launchConnections, 5000 + 1000 * browser.row);
-				
-			});
-			
-			window.onunload = window.onbeforeunload = function(e) {
-			  if (!!peer.peer && !peer.peer.destroyed) {
-				peer.peer.destroy();
-			  }
-			};
-			
-			peer.peer = p;
-		};
-
-
-*/
-
-/*
-_dd3.selection = function () {
-    return d3.selection.apply(this, arguments);
-};
-
-_dd3.selection.prototype = Object.create(d3.selection.prototype);
-
-_dd3.select = function () {
-    var selected = d3.select.apply(this, arguments);
-    selected.__proto__ = _dd3.selection.prototype;
-    return selected;
-};
-
-_dd3.selectAll = function () {
-    var selected = d3.selectAll.apply(this, arguments);
-    selected.__proto__ = _dd3.selection.prototype;
-    return selected;
-};
-
-//Now we can change any function used with selections & even add some
-
-_dd3.selection.prototype.select = function () {
-    var selected = d3.selection.prototype.select.apply(this, arguments);
-    selected.__proto__ = _dd3.selection.prototype;
-    return selected;
-};
-
-_dd3.selection.prototype.selectAll = function () {
-    var selected = d3.selection.prototype.selectAll.apply(this, arguments);
-    selected.__proto__ = _dd3.selection.prototype;
-    return selected;
-};
-
-_dd3.selection.prototype.send = function () {
-    log("Sending ...");
-    return this;
-};
-//*/
-
-/*
-_dd3.selection.prototype.attr = function () {
-    
-    var selection = d3_attr.apply(this, arguments);
-
-    if (arguments.length < 2)
-        return selection;
-
-    if (arguments[0] == "transform") {
-        this.select(function () {
-            var g = d3.select(this),
-                t = d3_attr.call(g, "transform"),
-                c = getRotationCenter(t);
-
-            if (c !== null) {
-
-                if (isNaN(c[0])) {
-                    c[0] = 0;
-                    c[1] = 0;
-                }
-
-                var parentCTM = getContainingGroup(this).getCTM();
-
-                c[0] = hlsg.left(c[0] + parentCTM.e);
-                c[1] = hlsg.top(c[1] + parentCTM.f);
-                d3_attr.call(g, "transform", setRotationCenter(t, c));
-            }
-
-        });
-    }
-
-    return selection;
-
-};
-*/
