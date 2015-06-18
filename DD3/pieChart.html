@@ -1,0 +1,82 @@
+﻿
+<html>
+<meta charset="utf-8">
+<style>
+    body {
+        font: 11px sans-serif;
+        padding: 0px;
+        margin: 0px;
+    }
+
+    .dot {
+        stroke: #000;
+    }
+</style>
+<body>
+
+    <script src="Scripts/d3.js"></script>
+    <script src="Scripts/peer.js"></script>
+    <script src="Scripts/jquery-1.10.2.min.js"></script>
+    <script src="Scripts/jquery.signalR-2.2.0.min.js"></script>
+    <script src="signalr/hubs"></script>
+
+    <script src="Scripts/utils.js"></script>
+    <script src="Scripts/api.js"></script>
+    <script src="Scripts/dd3.v0.js"></script>
+
+    <script>
+
+        dd3.on('ready', function () {
+            var svg = dd3.svgCanvas;
+
+            var cave = dd3.cave(),
+                width = cave.svgWidth,
+                height = cave.svgHeight,
+                radius = Math.min(width, height) / 2;
+
+            var data = dd3.getPieData(width / 2, height / 2);
+
+            var color = d3.scale.ordinal()
+                    .range(["#98abc5", "#8a89a6", "#7b6888", "#6b486b", "#a05d56", "#d0743c", "#ff8c00"]);
+
+            var arc = d3.svg.arc()
+                    .outerRadius(radius - 10)
+                    .innerRadius(10);
+
+            var pie = d3.layout.pie()
+                    .sort(null)
+                    .padAngle(.05)
+                    .value(function (d) { return +d.gdp; });
+
+            svg = svg.append("g")
+                .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+            var g = svg.append("g")
+                .attr("id", "paths").selectAll(".arc")
+                .data(pie(data))
+                .enter().append("g")
+                .attr("class", "arc");
+
+            g.append("path")
+                .attr("d", arc)
+                .style("fill", function (d) { return color(d.data.country); })
+                .send();
+
+            svg.append("g")
+                .attr("id", "texts").selectAll("text")
+                .data(pie(data))
+                .enter()
+                .append("text")
+                .attr("transform", function (d) {
+                    var angle = (d.startAngle + d.endAngle) * 90 / Math.PI; return "translate(" + arc.centroid(d) + ")rotate(" + (-(90 - angle) + (angle > 180 ? 180 : 0)) + ")";
+                })
+                .attr("dy", ".35em")
+                .attr("font-size", "1.5em")
+                .style("text-anchor", "middle")
+                .text(function (d) { return d.data.country; })
+                .send();
+
+        });
+    </script>
+</body>
+</html>

@@ -12,8 +12,9 @@ function clamp (value, min, max) {
 	return value < min ? min : value > max ? max : value;
 }
 
+// p to true try to parse numbers
 function d (k, p) {
-	return function (d) { return p ? +d[k] : d[k];};
+    return function (d) { return ((p && +d[k]) || d[k]); };
 };
 
 // Not exactly what I need, to improve :)

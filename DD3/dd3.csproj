@@ -86,6 +86,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="all.html" />
+    <Content Include="allPie.html" />
     <Content Include="allGraph.html">
       <BrowseToURL>~/all2.html</BrowseToURL>
     </Content>
@@ -93,6 +94,7 @@
     <Content Include="index.html">
       <BrowseToURL>~/index.html%3fcol=0&amp;row=0</BrowseToURL>
     </Content>
+    <Content Include="pieChart.html" />
     <Content Include="Scripts\api.js" />
     <Content Include="Scripts\d3.js" />
     <Content Include="Scripts\dd3.v0.js" />

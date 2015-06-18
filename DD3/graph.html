@@ -34,7 +34,7 @@
     <script>
 
     dd3.on('ready', function () {
-	    var dim = dd3.dataDimensions(true);
+	    var dim = dd3.dataDimensions();
 	    var extent = dim.gdp.max - dim.gdp.min, coef = 0.2, c = 0;
 	    var xDomain = d3.range(dim.length);
 	    var yDomain = [0, +dim.gdp.max + coef * extent + c];
@@ -119,7 +119,7 @@
                 i++;
             }, 2000);
 
-        }, 1000);
+        }, 5000);
 
     });
     </script>

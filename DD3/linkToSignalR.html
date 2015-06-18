@@ -12,7 +12,8 @@
     <script>
         var dd3Server = $.connection.dd3Hub;
 
-        dd3Server.client.receiveConfiguration = function (info) {
+        dd3Server.client.receiveConfiguration = function (id, info) {
+            console.log("id : " + id);
             info = JSON.parse(info);
             info.forEach(function (o) {
                 for (p in o) {

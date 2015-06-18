@@ -5,32 +5,29 @@ api.dataPoints = d3.range(0, 100, 0.05).map(function (d) { return { id: uid++, x
 //api.dataPoints = d3.range(0, 26, 0.8).map(function (d) { return { id: uid++, x: d, y: Math.cos(d) }; });
 //api.dataPoints = d3.range(-10, 15, 0.5).map(function (d) { return { id: uid++, x: d, y: d*d }; });
 //api.dataPoints = [{ x: 1, y: 2 }, { x: 4.5, y: 3.3 }, { x: 1, y: 5 }, { x: 8, y: 2 }]
-api.barDataPoints = [/*{ country: "USA", gdp: "17.4" }, { country: "China", gdp: "10.3" }, */{ country: "England", gdp: "2.9" }, { country: "France", gdp: "2.8" }, { country: "Germany", gdp: "3.8" }, { country: "Japan", gdp: "4.6" }]
+//api.dataPoints = [/*{ country: "USA", gdp: "17.4" }, { country: "China", gdp: "10.3" },*/ { country: "England", gdp: "2.9" }, { country: "France", gdp: "2.8" }, { country: "Germany", gdp: "3.8" }, { country: "Japan", gdp: "4.6" }]
 
 api.getConf;
 
 // The data dimensions api should read each entry and give the min and max
 api.getDataDimensions = function () {
-    var dimensions = { x: {}, y: {} };
+    var dimensions = {},
+        prop = [],
+        data = api.dataPoints;
 
-	dimensions.x.min = d3.min(api.dataPoints, d('x'));
-	dimensions.x.max = d3.max(api.dataPoints, d('x'));
-	dimensions.y.min = d3.min(api.dataPoints, d('y'));
-	dimensions.y.max = d3.max(api.dataPoints, d('y'));
+    for (p in data[0])
+        if (data[0].hasOwnProperty(p))
+            prop.push(p);
+    
+    prop.forEach(function (p) {
+        dimensions[p] = {};
+        dimensions[p].min = d3.min(data, d(p, true));
+        dimensions[p].max = d3.max(data, d(p, true));
+    })
+
+	dimensions.length = data.length;
 
 	return dimensions;
-};
-
-api.getBarDataDimensions = function () {
-    var dimensions = { country: {}, gdp: {} };
-
-    dimensions.country.min = d3.min(api.barDataPoints, d('country'));
-    dimensions.country.max = d3.max(api.barDataPoints, d('country'));
-    dimensions.gdp.min = d3.min(api.barDataPoints, d('gdp', true));
-    dimensions.gdp.max = d3.max(api.barDataPoints, d('gdp', true));
-
-    dimensions.length = api.barDataPoints.length;
-    return dimensions;
 };
 
 //Not perfect ... need the case x = xmax
@@ -48,12 +45,15 @@ var sorter = function (_) {
 };
 
 api.getBarData = function (limit, sortOn) {
-
-    var data = api.barDataPoints.sort(sorter(sortOn || "id"));
-    var data = api.barDataPoints.forEach(function (d, i) { d.order = i; });
-    var filteredData = api.barDataPoints.filter(function (d, i) { return i >= limit.min && i < limit.max })
+    var data = api.dataPoints.sort(sorter(sortOn || "id"));
+    var data = api.dataPoints.forEach(function (d, i) { d.order = i; });
+    var filteredData = api.dataPoints.filter(function (d, i) { return i >= limit.min && i < limit.max })
 
     return filteredData;
+};
+
+api.getPieData = function () {
+    return api.dataPoints;
 };
 
 /* 
