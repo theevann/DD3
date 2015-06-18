@@ -133,7 +133,7 @@ var dd3 = (function () {
 		
 		init.connectToPeerServer = function (callback) {
 
-		    var p = peer.peer = new Peer({ key: 'x7fwx2kavpy6tj4i', debug: 0 });
+		    var p = peer.peer = new Peer({ key: 'q35ylav1jljo47vi', debug: 0 });
 			
             //To Do, problem of double connection to same peer
 			var connect = function (c, callback) {
@@ -174,6 +174,7 @@ var dd3 = (function () {
 			        conn;
 
 			    var callback = function (c) {
+			        log("Connection state : " + (c.open ? "Open" : "Closed"));
 			        c.send(data);
 			    };
 
@@ -182,7 +183,7 @@ var dd3 = (function () {
 			        var check = peer.peers.some(function (p) {
 			            if (+p.col === +c && +p.row === +r) {
 			                var conn = peer.peer.connect(p.peerId, {reliable : true});
-                            conn.on("open", connect.bind(null, conn, callback));
+			                conn.on("open", connect.bind(null, conn, callback));
 			                return true;
 			            }
 			            return false;
@@ -285,9 +286,9 @@ var dd3 = (function () {
 			launch();
 		};
 		
-		init.getDataDimensions = function (bar) {
+		init.getDataDimensions = function () {
 			log("Getting Data dimensions from api", 1);
-			data.dataDimensions = bar ? api.getBarDataDimensions() : api.getDataDimensions();
+			data.dataDimensions = api.getDataDimensions();
 			return data.dataDimensions;
 		};
 		
@@ -380,7 +381,7 @@ var dd3 = (function () {
 		        //To improve... some bars might not be displayed
 
 		        limit.min = d3.bisect(r, slsg(0) - scale.rangeBand() / 2);
-		        limit.max = d3.bisect(r, slsg(browser[orientation === "bottom" || orientation === "top" ? 'width' : 'height']) - scale.rangeBand() / 2);
+		        limit.max = d3.bisect(r, slsg(browser[orientation === "bottom" || orientation === "top" ? 'svgWidth' : 'svgHeight']) - scale.rangeBand() / 2);
 
 		        data.barDataPoints = api.getBarData(limit, key);
 		    }
@@ -388,6 +389,14 @@ var dd3 = (function () {
 		    return data.barDataPoints;
 		};
 		
+		init.data.getPieData = function (centerX, centerY) {
+		    var sgsl = _dd3.position('svg', 'global', 'svg', 'local');
+		    if (sgsl.left(centerX) >= 0 && sgsl.left(centerX) < browser.width)
+		        if (sgsl.top(centerY) >= 0 && sgsl.top(centerY) < browser.height)
+		            return api.getPieData();
+		    return [];
+        }
+
 		return init;
 
 	})();
@@ -496,12 +505,14 @@ var dd3 = (function () {
                     .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
                     .append(data.name)
                     .attr(data.attr)
+                    .html(data.html)
                     .attr("id", data.sendId);
 
 	        } else {
 	            g = d3.select(getContainingGroup(obj.node()));
 	            g.attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-	            obj.attr(data.attr);
+	            obj.attr(data.attr)
+                   .html(data.html);
 	        }
 	    };
 
@@ -723,7 +734,7 @@ var dd3 = (function () {
 		    return function () {
 		        var counter = 0, dest;
 
-		        this.select(function (d, i) {
+		        this.each(function (d, i) {
 		            
 		            dest = _dd3_findDest(this);
 
@@ -734,6 +745,7 @@ var dd3 = (function () {
                             action: '',
 		                    name: '',
 		                    attr: null,
+                            html : "",
 		                    ctm: null,
                             sendId: null,
 		                    container: ""
@@ -747,6 +759,7 @@ var dd3 = (function () {
 		                // Get all attributes from current SVG object
 		                obj.attr = getAttr(this);
 		                obj.name = this.nodeName;
+		                obj.html = this.innerHTML;
 
 		                // Make the translation parameter global to send it to others
 		                ctm.e = hlhg.left(ctm.e);
@@ -803,19 +816,21 @@ var dd3 = (function () {
 		
 		_dd3.dataPoints = function () { return data.dataPoints.slice(); };
 		
-		_dd3.dataDimensions = function (bar) { initializer.getDataDimensions(bar); return extend({}, data.dataDimensions); };
+		_dd3.dataDimensions = function () { initializer.getDataDimensions(); return clone(data.dataDimensions); };
 		
 		_dd3.peers = function () { return extend({}, peer); };
 		
-		_dd3.cave = function () { return extend({}, cave);};
+		_dd3.cave = function () { return clone(cave);};
 		
-		_dd3.browser = function () { return extend({}, browser);};
+		_dd3.browser = function () { return clone(browser);};
 		
 		_dd3.getData = initializer.data.getData;
 
 		_dd3.getPathData = initializer.data.getPathData;
 
 		_dd3.getBarData = initializer.data.getBarData;
+
+		_dd3.getPieData = initializer.data.getPieData;
 		
 		_dd3.state = function () { return state(); };
 		
