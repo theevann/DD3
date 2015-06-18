@@ -2,6 +2,9 @@
 *   Version 0.0.1
 */
 
+var peerObject = { key: 'q35ylav1jljo47vi', debug: 0 };
+
+
 var dd3 = (function () {
 	"use strict";
 	var _dd3 = Object.create(d3);
@@ -133,17 +136,25 @@ var dd3 = (function () {
 		
 		init.connectToPeerServer = function (callback) {
 
-		    var p = peer.peer = new Peer({ key: 'q35ylav1jljo47vi', debug: 0 });
+		    var p = peer.peer = new Peer(peerObject);
 			
-            //To Do, problem of double connection to same peer
-			var connect = function (c, callback) {
-			    log("Connection established with Peer : " + c.peer, 0);
+		    //To Do, problem of double connection to same peer
 
-			    return peer.peers.some(function (p) {
+		    var connect = function (c) {
+		        if (!c.open) {
+		            c.on("open", function () { connect(c); });
+		            return;
+		        }
+
+			    log("Connection with established Peer : " + c.peer, 0);
+
+			    peer.peers.some(function (p) {
 			        if (p.peerId === c.peer) {
-			            peer.connections[p.row][p.col] = c;
 			            c.on("data", function () { peer.dataReceiver.apply(this, arguments); });
-			            callback && callback(c);
+			            if (peer.connections[p.row][p.col] instanceof Array) {
+			                c.send(peer.connections[p.row][p.col]);
+                        }
+			            peer.connections[p.row][p.col] = c;
 			            return true;
 			        }
 			        return false;
@@ -151,7 +162,7 @@ var dd3 = (function () {
 			};
 
 			p.on('open', function (id) {
-				log('Connected to peer server with id : ' + id, 1);
+				log('Connected to peer server - id : ' + id, 1);
 				peer.id = id;
 				
 				p.on('connection', connect);
@@ -173,17 +184,13 @@ var dd3 = (function () {
 			    var data = clone(d),
 			        conn;
 
-			    var callback = function (c) {
-			        log("Connection state : " + (c.open ? "Open" : "Closed"));
-			        c.send(data);
-			    };
-
-			    if (!peer.connections[r][c]) {
+			    if (typeof peer.connections[r][c] === "undefined") {
 
 			        var check = peer.peers.some(function (p) {
 			            if (+p.col === +c && +p.row === +r) {
-			                var conn = peer.peer.connect(p.peerId, {reliable : true});
-			                conn.on("open", connect.bind(null, conn, callback));
+			                conn = peer.peer.connect(p.peerId, {reliable : true});
+			                conn.on("open", function () { connect(conn); });
+			                peer.connections[r][c] = [data];
 			                return true;
 			            }
 			            return false;
@@ -191,8 +198,10 @@ var dd3 = (function () {
 
 			        if (!check)
 			            return false;
-			    } else {
-			        callback(peer.connections[r][c]);
+			    } else if (peer.connections[r][c] instanceof Array) {
+			        peer.connections[r][c].push(data);
+                } else {
+			        peer.connections[r][c].send(data);
 			    }
 
 			    return true;
@@ -517,12 +526,20 @@ var dd3 = (function () {
 	    };
 
 	    peer.dataReceiver = function (data) {
-	        log("Receiving an object...");
+	        
+                
+	        if (data instanceof Array) {
+	            data.forEach(peer.dataReceiver);
+	            return;
+	        }
 
+	        log("Receiving an object...");
 	        switch (data.type) {
 	            case 'shape':
 	                plotter(data);
 	                break;
+	            default:
+	                log(data, 2);
 	        }
 
 	    };
@@ -858,3 +875,17 @@ var dd3 = (function () {
 	
 	return _dd3;
 })();
+
+
+/*
+Recent fixe, for temporary memory if needed
+
+var int = setInterval(function () {
+    log("Connection state : " + (c.open ? "Open " : "Closed ") + browser.row + "," + browser.column);
+    if (c.open) {
+        clearInterval(int);
+        //c.send("Hi it's (" + browser.row + "," + browser.column + ")");
+        c.send(data);
+    }
+}, 100);
+*/
