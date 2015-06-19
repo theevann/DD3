@@ -99,10 +99,9 @@
 
         var color = d3.scale.category20(),
             i = 0;
-
-        dd3.synchronize(function () {
-
-            setInterval(function () {
+        
+        var f = function () {
+            setTimeout(function () {
                 var randomGDP = dim.gdp.max * Math.random();
                 svg.selectAll('rect')
                   .data(barData)
@@ -117,9 +116,16 @@
                   .attr('stroke-width', '2')
                   .send();
                 i++;
-            }, 2000);
 
-        }, 5000);
+                if (i % 10 == 0) {
+                    dd3.synchronize(f);
+                } else {
+                    f();
+                }
+            }, 3000);
+        };
+
+        dd3.synchronize(f, 5000);
 
     });
     </script>
