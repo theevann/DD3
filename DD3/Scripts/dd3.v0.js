@@ -521,9 +521,9 @@ var dd3 = (function () {
         var _dd3_plotter = function (data) {
 
             if (data.action === "exit") {
-                var o = d3.select("#" + data.sendId);
-                if (!o.empty())
-                    o.remove();
+                var g = d3.select(getContainingGroup(d3.select("#" + data.sendId).node()));
+                if (!g.empty() )
+                    g.remove();
                 return;
             }
 
