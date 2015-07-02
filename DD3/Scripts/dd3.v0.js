@@ -79,6 +79,8 @@ var dd3 = (function () {
             right: 0
         }
     };
+    
+    var syncTime;
 
     var initializer = (function () {
         /*
@@ -214,6 +216,7 @@ var dd3 = (function () {
             log("Receiving connected browsers' ids from signalR server", 1);
 
             signalR.sid = sid;
+            syncTime = Date.now();
             var peersInfo = JSON.parse(obj);
             var maxCol, minCol, maxRow, minRow;
 
@@ -615,6 +618,7 @@ var dd3 = (function () {
             return function (_, t) {
                 _ = typeof _ === "function" ? _ : nop;
                 signalR.syncCallback = function () {
+                    syncTime = Date.now();
                     log("Synchronized !", 0);
                     setTimeout(_, t || 0);
                 }
