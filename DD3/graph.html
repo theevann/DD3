@@ -95,7 +95,7 @@
           .attr('fill', 'steelblue')
           .attr('stroke', 'black')
           .attr('stroke-width', '2')
-          .send();
+          .watch();
 
         var color = d3.scale.category20(),
             i = 0;
@@ -111,10 +111,7 @@
                   })
                   .attr('height', function (d) {
                       return (yScale(0) - yScale(randomGDP));
-                  })
-                  .attr('stroke', 'black')
-                  .attr('stroke-width', '2')
-                  .send();
+                  });
                 i++;
 
                 if (i % 10 == 0) {
