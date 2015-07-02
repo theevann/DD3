@@ -1,4 +1,4 @@
-/**
+﻿/**
 *   Version 0.0.1
 */
 
@@ -516,6 +516,9 @@ var dd3 = (function () {
                 case 'shape':
                     _dd3_plotter(data);
                     break;
+                case 'property':
+                    _dd3_propertyUpdater(data);
+                    break;
                 default:
                     log(data, 2);
             }
@@ -569,6 +572,18 @@ var dd3 = (function () {
                    .html(data.html);
             }
         };
+
+        var _dd3_propertyUpdater = function (data) {
+            if (data.action !== 'update') {
+                _dd3_plotter(data);
+                return;
+            }
+
+            var obj;
+            if (!(obj = d3.select("#" + data.sendId)).empty()) {
+                obj[data.function](data.property, data.value);
+            }
+        }
 
         /**
 		 * Hook helper functions for d3
@@ -695,6 +710,24 @@ var dd3 = (function () {
 
         _dd3.selection = d3.selection;
 
+        // To hook : attr, style, html, text.
+
+        var _dd3_hook_attr = d3.selection.prototype.attr;
+        _dd3.selection.prototype.attr = function () {
+            if (arguments.length < 2)
+                return _dd3_hook_attr.apply(this, arguments);
+            _dd3_hook_attr.apply(this, arguments);
+
+            var e = this.filter(function (d, i) {
+                return !!this.__watch__;
+            })
+
+            if(!e.empty())
+                e.send('attr', arguments[0]);
+
+            return this;
+        };
+
         var _dd3_getSelections = function (newSelection, oldSelection) {
             var ns = newSelection.slice(),
 		        os = oldSelection.slice();
@@ -725,9 +758,7 @@ var dd3 = (function () {
                 }
             });
 
-            os.forEach(function (d) {
-                exit.push(d);
-            });
+            exit = os;
 
             return [enter, update, exit];
         }
@@ -786,92 +817,144 @@ var dd3 = (function () {
             });
         };
 
-        _dd3.selection.prototype.send = (function () {
-            var m = d3.select('svg').node().createSVGMatrix();
-            var sendId = 0;
+        _dd3.selection.prototype.send = function (funcName, propName) {
+            var counter = 0, formerRcpts, rcpt, rcpts = [], objs, selections;
 
-            return function () {
-                var counter = 0, rcpt, rcpts = [];
+            this.each(function (d, i) {
+                // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
+                formerRcpts = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__;
+                // Get current recipients - See above the function _dd3_findRecipients for more info
+                rcpt = this.__recipients__ = _dd3_findRecipients(this);
+                // Create (enter,update,exit) selections with the recipients - See above the function _dd3_getSelections for more info
+                selections = _dd3_getSelections(rcpt, formerRcpts);
 
-                this.each(function (d, i) {
-                    rcpt = _dd3_findRecipients(this);
-
-                    var idContainer = getIdentifiedContainer(this, false),
-                        ctm = this.getCTM(),
-		                obj = {	// Create a new object to send
-		                    type: 'shape',
-		                    action: '',
-		                    name: '',
-		                    attr: null,
-		                    html: "",
-		                    ctm: null,
-		                    sendId: null,
-		                    container: ""
-		                };
-
-                    // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
-                    // See above the function _dd3_getSelections for more info
-                    var formerRecipients = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__,
-		                selections = _dd3_getSelections(rcpt, formerRecipients);
-                    this.__recipients__ = rcpt;
-
+                if (rcpt.length > 0 || formerRcpts.length > 0) {
+                    // Create the object to send
+                    objs = _dd3_dataFormatter(this, funcName ? 'property' : 'shape', selections, funcName, propName);
+                    // Send it to all who may have to plot it
+                    rcpt = _dd3_dataSender(objs, selections);
                     // Save all recipients to flush buffer for them afterwards
-                    _dd3_mergeRecipientsIn(d3.merge(selections), rcpts);
+                    _dd3_mergeRecipientsIn(rcpt, rcpts);
+                    counter += rcpt.length;
+                }
+            });
 
-                    if (rcpt.length > 0 || formerRecipients.length > 0) {
-                        // Get all attributes from current SVG object
-                        obj.attr = getAttr(this);
-                        obj.name = this.nodeName;
-                        obj.html = this.innerHTML;
+            // If we chose to buffer, then we need to flush buffers for recipients !
+            rcpts.forEach(function (d) { peer.flush(d[0], d[1]); });
 
-                        // Make the translation parameter global to send it to others
-                        ctm.e = hlhg.left(ctm.e);
-                        ctm.f = hlhg.top(ctm.f);
+            log("Sending " + counter + " objects...");
+            // We may choose to return only sent objects ... to be decided !
+            return this;
+        };
 
-                        // Remove any transformation on the object as we handle it with the ctm
-                        obj.attr.transform = null;
+        var _dd3_dataFormatter = (function () {
+            var sendId = 0,
+                actions = ['enter', 'update', 'exit'];
 
-                        // Matrix CTM not sendable with peer.js, just copy the parameter into a normal object
-                        copyCTMFromTo(ctm, obj.ctm = {});
-                        // Remember the container to keep the drawing order (superposition)
-                        obj.container = idContainer;
+            var createShapeObject = function (obj, elem) {
+                var idContainer = getIdentifiedContainer(elem, false),
+                       ctm = elem.getCTM();
 
-                        // Create and bound sendId to the sent shape to be able to retrieve it later in recipients' dom
-                        this.__sendId__ = typeof this.__sendId__ === "undefined" ? sendId++ : this.__sendId__;
-                        obj.sendId = "dd3_" + browser.row + browser.column + "_" + this.__sendId__;
+                /*
+                obj = {
+                    action: null,
+                    name: null,
+                    attr: null,
+                    html: null,
+                    ctm: null,
+                    container: null
+                };
+                */
+
+                obj.attr = getAttr(elem);
+                obj.name = elem.nodeName;
+                obj.html = elem.innerHTML;
+
+                // Make the translation parameter global to send it to others
+                ctm.e = hlhg.left(ctm.e);
+                ctm.f = hlhg.top(ctm.f);
+
+                // Remove any transformation on the object as we handle it with the ctm
+                obj.attr.transform = null;
+
+                // Matrix CTM not sendable with peer.js, just copy the parameter into a normal object
+                copyCTMFromTo(ctm, obj.ctm = {});
+                // Remember the container to keep the drawing order (superposition)
+                obj.container = idContainer;
+            };
+
+            var createPropertyObject = function (obj, elem, f, p) {
+                obj.function = f;
+
+                switch (f) {
+                    case 'attr':
+                        obj.property = p;
+                        obj.value = elem.attributes[p].nodeValue;
+                        break;
+                }
+            };
+
+            return function (elem, type, selections, f, p) {
+
+                // Bound sendId to the sent shape to be able to retrieve it later in recipients' dom
+                elem.__sendId__ = typeof elem.__sendId__ === "undefined" ? sendId++ : elem.__sendId__;
+
+                var objs = [],
+                    obj = {
+                    type: type,
+                    sendId : "dd3_" + browser.row + '-' + browser.column + "_" + elem.__sendId__
+                };
+
+                selections.forEach(function (s, i) {
+                    if (s.length == 0) {
+                        objs.push(false);
+                        return;
                     }
 
-                    // Send it to all who may have to plot it
-                    var objs = [],
-		                actions = ['enter', 'update', 'exit'];
+                    var objTemp = clone(obj);
+                    objTemp.action = actions[i];
 
-                    // Allow to do something special for each selection (enter, update, exit) of recipients
-                    selections.forEach(function (s, i) {
-                        // Create objs[i] only if there is recipients !
-                        if (s.length > 0) {
-                            obj.action = actions[i];
-                            // Clone it because the sending process may be delayed and obj.action property changed !
-                            objs[i] = clone(obj);
+                    if (i === 0) { // If enter, in both cases we send a new shape
+                        createShapeObject(objTemp, elem);
+                    } else if (i === 1) { // If update...
+                        if (type === 'shape') { // If we want to send the shape...
+                            createShapeObject(objTemp, elem);
+                        } else if (type === 'property') { // otherwise, if we just want to update a property ...
+                            createPropertyObject(objTemp, elem, f, p);
                         }
+                    }
 
-                        s.forEach(function (d) {
-                            peer.sendTo(d[0], d[1], objs[i], true); // true for buffering 
-                            counter++;
-                        });
-                    });
-
-                    return this;
+                    objs.push(objTemp);
                 });
 
-                // If we chose to buffer, then we need to flush buffers for recipients !
-                rcpts.forEach(function (d) { peer.flush(d[0], d[1]); });
-
-                log("Sending " + counter + " objects...");
-                // We may choose to return only sent objects ... to be decided !
-                return this;
+                return objs;
             };
+
         })();
 
+        var _dd3_dataSender = function (objs, selections) {
+            // Allow to do something special for each selection (enter, update, exit) of recipients
+            selections.forEach(function (s, i) {
+                s.forEach(function (d) {
+                    peer.sendTo(d[0], d[1], objs[i], true); // true for buffering 
+                });
+            });
+
+            return d3.merge(selections);
+        };
+
+        _dd3.selection.prototype.watch = function () {
+            this.send();
+            this.each(function (d, i) {
+                this.__watch__ = true;
+            });
+        };
+
+        _dd3.selection.prototype.unwatch = function () {
+            this.each(function (d, i) {
+                this.__watch__ = false;
+            });
+        };
 
         /**
 		 * Getter
