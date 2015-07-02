@@ -71,7 +71,7 @@ var dd3 = (function () {
     var browser = {
         number: null,
         width: 1280 / 4, //$(this).width();
-        height: 720 / 2 / 2, //$(this).height();
+        height: 720 / 2 / 1, //$(this).height();
         margin: {
             top: 0,
             bottom: 0,
@@ -437,7 +437,7 @@ var dd3 = (function () {
 		    .attr("transform", "translate(" + [browser.margin.left - slsg.left(0), browser.margin.top - slsg.top(0)] + ")");
 
         /**
-         * dataReceiver
+         * Peer functions
          * dataHandler
          */
 
@@ -481,7 +481,7 @@ var dd3 = (function () {
                     return false;
             }
 
-            //If connection is being established or we asked to buffer, we buffer - else we send
+            // If connection is being established or we asked to buffer, we buffer - else we send
             if (peer.connections[r][c] === true || buffer) {
                 peer.buffers[r][c].push(data);
             } else {
@@ -731,7 +731,7 @@ var dd3 = (function () {
         // Find all browsers which MAY need to receive the element :
         // Take the bounding rectangle and find browsers at the extremities of it
         // Add as recipients every browsers inside the 4 browsers found above
-        // We in fact need only 3 browsers as they already form a rectangle
+        // We in fact need only 2 browsers as they already form a rectangle
         var _dd3_findRecipients = function (el) {
             var rcpt = [];
             var rect = el.getBoundingClientRect();
@@ -739,11 +739,10 @@ var dd3 = (function () {
             if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) {
                 var f = hlhg,
                     topLeft = _dd3_findBrowserAt(f.left(rect.left), f.top(rect.top), 'html'),
-		            topRight = _dd3_findBrowserAt(f.left(rect.right), f.top(rect.top), 'html'),
-		            bottomLeft = _dd3_findBrowserAt(f.left(rect.left), f.top(rect.bottom), 'html');
+		            bottomRight = _dd3_findBrowserAt(f.left(rect.right), f.top(rect.bottom), 'html');
 
-                for (var i = Math.max(topLeft[0], 0), maxR = Math.min(bottomLeft[0], cave.rows - 1) ; i <= maxR ; i++) {
-                    for (var j = Math.max(topLeft[1], 0), maxC = Math.min(topRight[1], cave.columns - 1) ; j <= maxC; j++) { // Check to simplify
+                for (var i = Math.max(topLeft[0], 0), maxR = Math.min(bottomRight[0], cave.rows - 1) ; i <= maxR ; i++) {
+                    for (var j = Math.max(topLeft[1], 0), maxC = Math.min(bottomRight[1], cave.columns - 1) ; j <= maxC; j++) { // Check to simplify
                         if (i != browser.row || j != browser.column) {
                             rcpt.push([i, j]);
                         }
@@ -807,7 +806,7 @@ var dd3 = (function () {
 		                };
 
                     // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
-                    // See above the funnction _dd3_getSelections for more info
+                    // See above the function _dd3_getSelections for more info
                     var formerRecipients = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__,
 		                selections = _dd3_getSelections(rcpt, formerRecipients);
                     this.__recipients__ = rcpt;
@@ -852,7 +851,7 @@ var dd3 = (function () {
                         }
 
                         s.forEach(function (d) {
-                            peer.sendTo(d[0], d[1], objs[i], true);
+                            peer.sendTo(d[0], d[1], objs[i], true); // true for buffering 
                             counter++;
                         });
                     });
@@ -860,7 +859,7 @@ var dd3 = (function () {
                     return this;
                 });
 
-                // If we chose to bufferize, then we need to flush buffers for recipients !
+                // If we chose to buffer, then we need to flush buffers for recipients !
                 rcpts.forEach(function (d) { peer.flush(d[0], d[1]); });
 
                 log("Sending " + counter + " objects...");
@@ -921,7 +920,7 @@ var dd3 = (function () {
 
 
 /*
-Recent fixe, for temporary memory if needed
+Recent fix, for temporary memory if needed
 
 var int = setInterval(function () {
     log("Connection state : " + (c.open ? "Open " : "Closed ") + browser.row + "," + browser.column);
