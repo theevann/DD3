@@ -155,7 +155,15 @@ var dd3 = (function () {
                     // Previous loss of data : the buffering in peer.js seems not to work anymore,
                     // and data have to be sent when connection is opened
                     // We have to wait for the 'open' event to be triggered to launch connection
-                    c.on("open", function () { peer.connect(c); });
+
+                    peer.peers.some(function (p) {
+                        if (p.peerId !== c.peer)
+                            return false;
+                        peer.connections[p.row][p.col] = true;
+                        peer.buffers[p.row][p.col] = [];
+                        c.on("open", function () { peer.connect(c, p.row, p.col); });
+                        return true;
+                    });
                 });
 
                 callback();
@@ -420,14 +428,12 @@ var dd3 = (function () {
             top: browser.row * browser.height
         };
 
-
         // Most used functions already computed ... time saving !
         var hghl = _dd3.position('html', 'global', 'html', 'local'),
             hlhg = _dd3.position('html', 'local', 'html', 'global'),
             hlsg = _dd3.position('html', 'local', 'svg', 'global'),
 		    sghg = _dd3.position('svg', 'global', 'html', 'global'),
 	        slsg = _dd3.position('svg', 'local', 'svg', 'global');
-
 
         /**
          * Create the svg and provide it for use
@@ -444,39 +450,35 @@ var dd3 = (function () {
          * dataHandler
          */
 
-        //To Do, problem of double connection to same peer
-        peer.connect = function (c) {
-            log("Connection with established Peer : " + c.peer, 0);
+        // To Do, problem of double connection to same peer
+        peer.connect = function (conn, r, c) {
+            log("Connection with established Peer （" + [r,c] + "）: " + conn.peer, 0);
 
-            peer.peers.some(function (p) {
-                if (p.peerId === c.peer) {
-                    c.on("data", function () { peer.receive.apply(this, arguments); });
-                    // Once we are connected : 
-                    //  -> we save the connection in the 2 dimensional array representing the cave
-                    peer.connections[p.row][p.col] = c;
-                    //  -> we flush the buffered data
-                    peer.flush(p.row, p.col);
-                    return true;
-                }
-                return false;
-            });
+            conn.on("data", peer.receive);
+            // Once we are connected : 
+            //  -> we save the connection in the 2 dimensional array representing the cave
+            peer.connections[r][c] = conn;
+            //  -> we flush the buffered data
+            peer.flush(r, c);
         };
 
         peer.sendTo = function (r, c, data, buffer) {
             var conn;
+            r = +r;
+            c = +c;
 
             if (typeof peer.connections[r][c] === "undefined") {
 
                 // Try to find peer with r and c as row and column - use Array.some to stop when found
                 var check = peer.peers.some(function (p) {
-                    if (+p.col === +c && +p.row === +r) {
-                        conn = peer.peer.connect(p.peerId, { reliable: true });
-                        conn.on("open", function () { peer.connect(conn); });
-                        peer.connections[r][c] = true;
-                        peer.buffers[r][c] = [];
-                        return true;
-                    }
-                    return false;
+                    if (+p.row !== r || +p.col !== c)
+                        return false;
+
+                    conn = peer.peer.connect(p.peerId, { reliable: true });
+                    conn.on("open", function () { peer.connect(conn, r, c); });
+                    peer.connections[r][c] = true;
+                    peer.buffers[r][c] = [];
+                    return true;
                 })
 
                 // If there is no such peer
@@ -575,13 +577,13 @@ var dd3 = (function () {
 
         var _dd3_propertyUpdater = function (data) {
             if (data.action !== 'update') {
-                _dd3_plotter(data);
-                return;
+                return _dd3_plotter(data);
             }
 
-            var obj;
+            var obj, args;
             if (!(obj = d3.select("#" + data.sendId)).empty()) {
-                obj[data.function](data.property, data.value);
+                args = typeof data.property !== "undefined" ? [data.property, data.value] : [data.value];
+                obj[data.function].apply(obj, args);
             }
         }
 
@@ -704,6 +706,24 @@ var dd3 = (function () {
             return dd3_axis;
         };
 
+        var _dd3_watchFactory = function (original, funcName, expectedArg) {
+            var f = function () {
+                if (arguments.length < expectedArg)
+                    return original.apply(this, arguments);
+                original.apply(this, arguments);
+
+                var e = this.filter(function (d, i) {
+                    return !!this.__watch__;
+                })
+
+                if (!e.empty())
+                    e.send(funcName, arguments[0]);
+
+                return this;
+            }
+            return f ;
+        };
+
         /**
 		* dd3.selection
 		*/
@@ -711,22 +731,16 @@ var dd3 = (function () {
         _dd3.selection = d3.selection;
 
         // To hook : attr, style, html, text.
+        _dd3.selection.prototype.attr = _dd3_watchFactory(d3.selection.prototype.attr, 'attr', 2);
 
-        var _dd3_hook_attr = d3.selection.prototype.attr;
-        _dd3.selection.prototype.attr = function () {
-            if (arguments.length < 2)
-                return _dd3_hook_attr.apply(this, arguments);
-            _dd3_hook_attr.apply(this, arguments);
+        _dd3.selection.prototype.style = _dd3_watchFactory(d3.selection.prototype.style, 'style', 2);
 
-            var e = this.filter(function (d, i) {
-                return !!this.__watch__;
-            })
+        _dd3.selection.prototype.html = _dd3_watchFactory(d3.selection.prototype.html, 'html', 1);
 
-            if(!e.empty())
-                e.send('attr', arguments[0]);
+        _dd3.selection.prototype.text = _dd3_watchFactory(d3.selection.prototype.text, 'text', 1);
 
-            return this;
-        };
+        _dd3.selection.prototype.classed = _dd3_watchFactory(d3.selection.prototype.classed, 'text', 2);
+
 
         var _dd3_getSelections = function (newSelection, oldSelection) {
             var ns = newSelection.slice(),
@@ -847,6 +861,17 @@ var dd3 = (function () {
             return this;
         };
 
+        /*
+        obj = {
+            action: null,
+            name: null,
+            attr: null,
+            html: null,
+            ctm: null,
+            container: null
+        };
+        */
+
         var _dd3_dataFormatter = (function () {
             var sendId = 0,
                 actions = ['enter', 'update', 'exit'];
@@ -855,16 +880,7 @@ var dd3 = (function () {
                 var idContainer = getIdentifiedContainer(elem, false),
                        ctm = elem.getCTM();
 
-                /*
-                obj = {
-                    action: null,
-                    name: null,
-                    attr: null,
-                    html: null,
-                    ctm: null,
-                    container: null
-                };
-                */
+                
 
                 obj.attr = getAttr(elem);
                 obj.name = elem.nodeName;
@@ -890,6 +906,16 @@ var dd3 = (function () {
                     case 'attr':
                         obj.property = p;
                         obj.value = elem.attributes[p].nodeValue;
+                        break;
+                    case 'style':
+                        obj.property = p;
+                        obj.value = elem.style[p];
+                        break;
+                    case 'html':
+                        obj.value = elem.innerHTML;
+                        break;
+                    case 'text':
+                        obj.value = elem.textContent;
                         break;
                 }
             };
@@ -948,12 +974,14 @@ var dd3 = (function () {
             this.each(function (d, i) {
                 this.__watch__ = true;
             });
+            return this;
         };
 
         _dd3.selection.prototype.unwatch = function () {
             this.each(function (d, i) {
                 this.__watch__ = false;
             });
+            return this;
         };
 
         /**
