@@ -728,7 +728,7 @@ var dd3 = (function () {
 
         var _dd3_watchFactory = function (original, funcName, expectedArg) {
             var f = function () {
-                if (arguments.length < expectedArg)
+                if (arguments.length < expectedArg && typeof arguments[0] !== 'object')
                     return original.apply(this, arguments);
                 original.apply(this, arguments);
 
@@ -759,6 +759,10 @@ var dd3 = (function () {
         _dd3.selection.prototype.text = _dd3_watchFactory(d3.selection.prototype.text, 'text', 1);
 
         _dd3.selection.prototype.classed = _dd3_watchFactory(d3.selection.prototype.classed, 'classed', 2);
+
+        _dd3.selection.prototype.property = _dd3_watchFactory(d3.selection.prototype.property, 'property', 2);
+
+        _dd3.selection.prototype.remove = _dd3_watchFactory(d3.selection.prototype.remove, 'remove', 0);
 
 
         var _dd3_getSelections = function (newSelection, oldSelection) {
@@ -796,13 +800,17 @@ var dd3 = (function () {
             return [enter, update, exit];
         }
 
-        // Find all browsers which MAY need to receive the element :
-        // Take the bounding rectangle and find browsers at the extremities of it
-        // Add as recipients every browsers inside the 4 browsers found above
-        // We in fact need only 2 browsers as they already form a rectangle
+        // Find all browsers which MAY need to receive the element
         var _dd3_findRecipients = function (el) {
+            // Take the bounding rectangle and find browsers at the extremities of it
+            // Add as recipients every browsers inside the 4 browsers found above
+            // We in fact need only 2 browsers as they already form a rectangle
+            // An improvement could be to check if there is an interesection between the shape and a browser
+            // Which means between a rectangle and an svg element -> see the 'intersection library' which computes
+            // intersection between svg elements. (Be careful - filled elements should be sent to browsers they contain !)
+            
             var rcpt = [];
-            var rect = el.getBoundingClientRect();
+            var rect = el.getBoundingClientRect(); // Relative to local html
 
             if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) {
                 var f = hlhg,
@@ -881,17 +889,6 @@ var dd3 = (function () {
             return this;
         };
 
-        /*
-        obj = {
-            action: null,
-            name: null,
-            attr: null,
-            html: null,
-            ctm: null,
-            container: null
-        };
-        */
-
         var _dd3_dataFormatter = (function () {
             var sendId = 0,
                 actions = ['enter', 'update', 'exit'];
@@ -913,6 +910,18 @@ var dd3 = (function () {
                 obj.container = idContainer;
             };
 
+            var createPropertiesObject = function (obj, elem, f, p) {
+                var array = [];
+
+                for (prop in p) {
+                    var objTemp = clone(obj);
+                    createPropertyObject(objTemp, elem, f, prop);
+                    array.push(objTemp);
+                }
+
+                obj = array;
+            };
+
             var createPropertyObject = function (obj, elem, f, p) {
                 obj.function = f;
 
@@ -928,17 +937,25 @@ var dd3 = (function () {
                         break;
                     case 'style':
                         obj.property = p;
-                        obj.value = elem.style[p];
+                        obj.value = d3.select(elem).style(p);
                         break;
                     case 'classed':
                         obj.property = p;
-                        obj.value = d3.select(elem).classed(p) ? true : null;
+                        obj.value = d3.select(elem).classed(p) || null;
+                        break;
+                    case 'property':
+                        obj.property = p;
+                        obj.value = d3.select(elem).property(p);
+                        obj.value = typeof obj.value !== 'undefined' ? obj.value : null;
                         break;
                     case 'html':
                         obj.value = elem.innerHTML;
                         break;
                     case 'text':
                         obj.value = elem.textContent;
+                        break;
+                    case 'remove':
+                        obj.action = 'exit';
                         break;
                 }
             };
@@ -980,7 +997,11 @@ var dd3 = (function () {
                         if (type === 'shape') { // If we want to send the shape...
                             createShapeObject(objTemp, elem);
                         } else if (type === 'property') { // otherwise, if we just want to update a property ...
-                            createPropertyObject(objTemp, elem, f, p);
+                            if (typeof p === 'string') {
+                                createPropertyObject(objTemp, elem, f, p);
+                            } else {
+                                createPropertiesObject(objTemp, elem, f, p);
+                            }
                         }
                     }
 
@@ -1079,4 +1100,18 @@ var int = setInterval(function () {
         c.send(data);
     }
 }, 100);
+*/
+
+
+/*
+If object is a shape
+
+obj = {
+    action: null,
+    name: null,
+    attr: null,
+    html: null,
+    ctm: null,
+    container: null
+};
 */
