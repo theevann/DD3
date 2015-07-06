@@ -910,16 +910,14 @@ var dd3 = (function () {
                 obj.container = idContainer;
             };
 
-            var createPropertiesObject = function (obj, elem, f, p) {
+            var createPropertiesObject = function (obj, elem, f, props) {
                 var array = [];
-
-                for (prop in p) {
+                for (var prop in props) {
                     var objTemp = clone(obj);
                     createPropertyObject(objTemp, elem, f, prop);
                     array.push(objTemp);
                 }
-
-                obj = array;
+                return array;
             };
 
             var createPropertyObject = function (obj, elem, f, p) {
@@ -1000,7 +998,7 @@ var dd3 = (function () {
                             if (typeof p === 'string') {
                                 createPropertyObject(objTemp, elem, f, p);
                             } else {
-                                createPropertiesObject(objTemp, elem, f, p);
+                                objTemp = createPropertiesObject(objTemp, elem, f, p);
                             }
                         }
                     }
