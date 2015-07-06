@@ -95,7 +95,7 @@ function getAttr (el) {
 }
 
 //Maybe should check that container != svg at the beggining
-function getIdentifiedContainer(el, returnElement) {
+function getIdentifiedContainer(el) {
     var container;
 
     while (!container && (el = el.parentNode)) {
@@ -103,8 +103,7 @@ function getIdentifiedContainer(el, returnElement) {
             container = el;
     } 
 
-    container = returnElement ? container : container.id !== "" ? "#" + container.id : 'svg g';
-    return container;
+    return (container.id !== "" ? ("#" + container.id) : 'svg g');
 }
 
 function getContainingGroup(el) {
@@ -125,6 +124,7 @@ function copyCTMFromTo(original, copy) {
     copy.d = original.d;
     copy.e = original.e;
     copy.f = original.f;
+    return copy;
 }
 
 // Keeped for memory for now, will probably be deleted as not needed

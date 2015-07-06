@@ -150,11 +150,8 @@ var dd3 = (function () {
                 peer.id = id;
 
                 p.on('connection', function (c) {
-                    // My previous mistake was to think that the 'connection' event was equivalent to the 'open' one.
-                    // When 'connection' is fired, the connection is not yet ready to use :/
                     // Previous loss of data : the buffering in peer.js seems not to work anymore,
-                    // and data have to be sent when connection is opened
-                    // We have to wait for the 'open' event to be triggered to launch connection
+                    // and data have to be sent only when connection is opened (connection != open)
 
                     peer.peers.some(function (p) {
                         if (p.peerId !== c.peer)
@@ -439,7 +436,9 @@ var dd3 = (function () {
          * Create the svg and provide it for use
          */
 
-        _dd3.svgCanvas = d3.select("body").append("svg")
+        _dd3.svgNode = d3.select("body").append("svg");
+
+        _dd3.svgCanvas = _dd3.svgNode
 		    .attr("width", browser.width)
 		    .attr("height", browser.height)
 		    .append("g")
@@ -513,79 +512,100 @@ var dd3 = (function () {
                 return;
             }
 
-            log("Receiving an object...");
-            switch (data.type) {
-                case 'shape':
-                    _dd3_plotter(data);
+            switch (data.action) {
+                case 'enter':
+                    log("Receiving an object entering...");
+                    _dd3_enterHandler(data);
                     break;
-                case 'property':
-                    _dd3_propertyUpdater(data);
+
+                case 'update':
+                    _dd3_updateHandler(data);
                     break;
+
+                case 'exit':
+                    log("Receiving an object exiting...");
+                    _dd3_exitHandler(data);
+                    break;
+
                 default:
+                    log("Receiving an unsupported data : Aborting !", 2);
                     log(data, 2);
             }
+
+            
         };
 
-        var _dd3_plotter = function (data) {
-
-            if (data.action === "exit") {
-                var g = d3.select(getContainingGroup(d3.select("#" + data.sendId).node()));
-                if (!g.empty() )
-                    g.remove();
-                return;
-            }
-
-            var svg = d3.select("svg"), // To-Do : Make sure to select the right svg if many ... 
+        var _dd3_enterHandler = function (data) {
+            var obj = d3.select("#" + data.sendId),
                 g = d3.select(data.container);
 
             // If id of the container doesn't exist in the receiver dom, take 'svg g' instead
-            g = g.empty() ? svg.select("g") : g;
+            g = g.empty() ? _dd3.svgCanvas : g;
+            // Make it clean by appending the svg object into a group to which we apply the transformation
+            obj = obj.empty() ? g.append("g").append(data.name) : obj;
 
+            // Update the CTM of the group containing the appended element (not the container retrieved through data.container)
+            _dd3_CTMUpdater(obj, g, data.ctm);
+
+            obj.attr(data.attr)
+               .html(data.html)
+               .attr("id", data.sendId);
+        };
+
+        var _dd3_updateHandler = function (data) {
+            switch (data.type) {
+                case 'shape':
+                    log("Receiving an object update...");
+                    _dd3_enterHandler(data);
+                    break;
+                case 'property':
+                    log("Receiving a property [" + data.function + (data.property ? (":" + data.property) : "") + "] update...");
+                    _dd3_propertyUpdater(data);
+                    break;
+                default:
+                    log("Receiving an unexpected object : Not handled !", 2);
+                    log(data, 2);
+            }
+        }
+
+        var _dd3_exitHandler = function (data) {
+            return d3.select(getContainingGroup(d3.select("#" + data.sendId).node())).remove();
+        };
+
+        var _dd3_propertyUpdater = function (data) {
+            var obj = d3.select("#" + data.sendId);
+
+            if (!obj.empty()) {
+                if (data.property === "transform") {
+                    var g = d3.select(data.container), g = g.empty() ? _dd3.svgCanvas : g;
+                    _dd3_CTMUpdater(obj, g, data.ctm);
+                } else {
+                    var args = typeof data.property !== "undefined" ? [data.property, data.value] : [data.value];
+                    obj[data.function].apply(obj, args);
+                }
+            }
+        }
+
+        var _dd3_CTMUpdater = function (obj, g, dataCtm) {
             // Get the group container ctm and create a new matrix for the incoming svg object
             var gCtm = g.node().getCTM(),
-                ctm = svg.node().createSVGMatrix();
+                ctm = _dd3.svgNode.node().createSVGMatrix();
 
             // Convert the global translate parameter to local one
-            data.ctm.e = hghl.left(+data.ctm.e);
-            data.ctm.f = hghl.top(+data.ctm.f);
+            dataCtm.e = hghl.left(+dataCtm.e);
+            dataCtm.f = hghl.top(+dataCtm.f);
 
             // ctm = data.ctm
-            copyCTMFromTo(data.ctm, ctm);
+            copyCTMFromTo(dataCtm, ctm);
+
             // The svg object will be placed in the group. To keep its position and orientation,
             // we applied the inverse transformation of the one that will be applied to it
             // by the container group transform attribute.
             ctm = gCtm.inverse().multiply(ctm);
 
-            var obj;
-            if ((obj = d3.select("#" + data.sendId)).empty()) {
-
-                // Make it clean by appending the svg object into a group to which we apply the transformation
-                g.append("g")
-                    .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-                    .append(data.name)
-                    .attr(data.attr)
-                    .html(data.html)
-                    .attr("id", data.sendId);
-
-            } else {
-                g = d3.select(getContainingGroup(obj.node()));
-                g.attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")")
-                obj.attr(data.attr)
-                   .html(data.html);
-            }
+            d3.select(getContainingGroup(obj.node()))
+              .attr("transform", "matrix(" + [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] + ")");
         };
-
-        var _dd3_propertyUpdater = function (data) {
-            if (data.action !== 'update') {
-                return _dd3_plotter(data);
-            }
-
-            var obj, args;
-            if (!(obj = d3.select("#" + data.sendId)).empty()) {
-                args = typeof data.property !== "undefined" ? [data.property, data.value] : [data.value];
-                obj[data.function].apply(obj, args);
-            }
-        }
 
         /**
 		 * Hook helper functions for d3
@@ -730,7 +750,6 @@ var dd3 = (function () {
 
         _dd3.selection = d3.selection;
 
-        // To hook : attr, style, html, text.
         _dd3.selection.prototype.attr = _dd3_watchFactory(d3.selection.prototype.attr, 'attr', 2);
 
         _dd3.selection.prototype.style = _dd3_watchFactory(d3.selection.prototype.style, 'style', 2);
@@ -739,7 +758,7 @@ var dd3 = (function () {
 
         _dd3.selection.prototype.text = _dd3_watchFactory(d3.selection.prototype.text, 'text', 1);
 
-        _dd3.selection.prototype.classed = _dd3_watchFactory(d3.selection.prototype.classed, 'text', 2);
+        _dd3.selection.prototype.classed = _dd3_watchFactory(d3.selection.prototype.classed, 'classed', 2);
 
 
         var _dd3_getSelections = function (newSelection, oldSelection) {
@@ -855,8 +874,9 @@ var dd3 = (function () {
 
             // If we chose to buffer, then we need to flush buffers for recipients !
             rcpts.forEach(function (d) { peer.flush(d[0], d[1]); });
-
-            log("Sending " + counter + " objects...");
+            
+            if (counter > 0)
+                log("Sending " + counter + " object" + (counter > 1 ? "s" : "") + "...");
             // We may choose to return only sent objects ... to be decided !
             return this;
         };
@@ -877,24 +897,18 @@ var dd3 = (function () {
                 actions = ['enter', 'update', 'exit'];
 
             var createShapeObject = function (obj, elem) {
-                var idContainer = getIdentifiedContainer(elem, false),
-                       ctm = elem.getCTM();
-
-                
+                var idContainer = getIdentifiedContainer(elem);
 
                 obj.attr = getAttr(elem);
                 obj.name = elem.nodeName;
                 obj.html = elem.innerHTML;
 
-                // Make the translation parameter global to send it to others
-                ctm.e = hlhg.left(ctm.e);
-                ctm.f = hlhg.top(ctm.f);
-
                 // Remove any transformation on the object as we handle it with the ctm
                 obj.attr.transform = null;
 
-                // Matrix CTM not sendable with peer.js, just copy the parameter into a normal object
-                copyCTMFromTo(ctm, obj.ctm = {});
+                // Create the CTM Object to send
+                obj.ctm = createCTMObject(elem);
+
                 // Remember the container to keep the drawing order (superposition)
                 obj.container = idContainer;
             };
@@ -905,11 +919,20 @@ var dd3 = (function () {
                 switch (f) {
                     case 'attr':
                         obj.property = p;
-                        obj.value = elem.attributes[p].nodeValue;
+                        if (p === "transform") {
+                            obj.ctm = createCTMObject(elem);
+                            obj.container = getIdentifiedContainer(elem);
+                        } else {
+                            obj.value = elem.attributes[p].nodeValue;
+                        }
                         break;
                     case 'style':
                         obj.property = p;
                         obj.value = elem.style[p];
+                        break;
+                    case 'classed':
+                        obj.property = p;
+                        obj.value = d3.select(elem).classed(p) ? true : null;
                         break;
                     case 'html':
                         obj.value = elem.innerHTML;
@@ -918,6 +941,17 @@ var dd3 = (function () {
                         obj.value = elem.textContent;
                         break;
                 }
+            };
+
+            var createCTMObject = function (elem) {
+                var ctm = elem.getCTM();
+
+                // Make the translation parameter global to send it to others
+                ctm.e = hlhg.left(ctm.e);
+                ctm.f = hlhg.top(ctm.f);
+
+                // Matrix CTM not sendable with peer.js, just copy the parameter into a normal object
+                return copyCTMFromTo(ctm, {});
             };
 
             return function (elem, type, selections, f, p) {
