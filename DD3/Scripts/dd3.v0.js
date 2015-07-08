@@ -802,9 +802,8 @@ var dd3 = (function () {
 
         // Find all browsers which MAY need to receive the element
         var _dd3_findRecipients = function (el) {
-            // Take the bounding rectangle and find browsers at the extremities of it
-            // Add as recipients every browsers inside the 4 browsers found above
-            // We in fact need only 2 browsers as they already form a rectangle
+            // Take the bounding rectangle and find browsers at the extremities of it (topleft and bottomright are enough)
+            // Add as recipients every browsers inside the 2 browsers found above
             // An improvement could be to check if there is an interesection between the shape and a browser
             // Which means between a rectangle and an svg element -> see the 'intersection library' which computes
             // intersection between svg elements. (Be careful - filled elements should be sent to browsers they contain !)
@@ -997,7 +996,7 @@ var dd3 = (function () {
                         } else if (type === 'property') { // otherwise, if we just want to update a property ...
                             if (typeof p === 'string') {
                                 createPropertyObject(objTemp, elem, f, p);
-                            } else {
+                            } else { // If we gave object as { property -> value, ... }
                                 objTemp = createPropertiesObject(objTemp, elem, f, p);
                             }
                         }
