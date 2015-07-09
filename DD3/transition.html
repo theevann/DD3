@@ -1,0 +1,127 @@
+﻿
+<html>
+<meta charset="utf-8">
+<style>
+body {
+  font: 11px sans-serif;
+  padding : 0px;
+  margin: 0px;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.dot {
+  stroke: #000;
+}
+
+</style>
+<body>
+
+    <script src="Scripts/d3.js"></script>
+    <script src="Scripts/peer.js"></script>
+    <script src="Scripts/jquery-1.10.2.min.js"></script>
+    <script src="Scripts/jquery.signalR-2.2.0.min.js"></script>
+    <script src="signalr/hubs"></script>
+
+    <script src="Scripts/utils.js"></script>
+    <script src="Scripts/api.js"></script>
+    <script src="Scripts/dd3.v0.js"></script>
+
+    <script>
+    var start;
+
+    dd3.on('ready', function () {
+	    
+	    var svg = dd3.svgCanvas,
+	        width = dd3.cave().svgWidth,
+	        height = dd3.cave().svgHeight,
+	        bwidth = dd3.browser().svgWidth,
+	        bheight = dd3.browser().svgHeight,
+            p = dd3.position("svg", "local", "svg", "global"),
+            c = dd3.browser().column,
+            r = dd3.browser().row;
+
+	    svg
+            .append('rect')
+            .attr("x", p.left(0))
+            .attr("y", p.top(0))
+            .attr("width", bwidth)
+            .attr("height", bheight)
+            .attr("stroke", "brown")
+            .attr("fill", "#BBB");
+
+	    svg
+            .append('rect')
+            .attr("x", 0)
+            .attr("y", 0)
+            .attr("width", width)
+            .attr("height", height)
+            .attr("stroke", "black")
+            .attr("fill", "transparent");
+
+
+	    svg.append("text")
+            .text([r, c])
+            .attr("font-size", 40)
+            .attr("dominant-baseline", "text-before-edge")
+            .attr("transform", 'translate(' + [p.left(0), p.top(0)] + ')');
+
+	    if (r == 0 && c == 0) {
+	        var rect = svg
+                    .append('rect')
+                    .attr("id", "test");
+	    }
+
+	    dd3.synchronize();
+
+	    start = function () {
+	        if (r == 0 && c == 0) {
+	            rect.attr("x", width / 10)
+                    .attr("y", 4.5 * height / 10)
+                    .attr("width", width / 10)
+                    .attr("height", height / 10)
+                    .attr("stroke", "black")
+                    .style("fill", "#EEE")
+                    .attr("fill", "rgb(29, 219, 29)")
+                    .text("None")
+                    .watch();
+
+	            rect.transition()
+                    .duration(40000)
+                    .style("fill", "#AAA")
+                    .attr('x', 8 * width / 10)
+                    .text("test")
+                    .attr('y', 8 * height / 10);
+	            /*
+                function update1() {
+                    rect.send();
+                    setTimeout(update, 50);
+                }
+                update1();
+                */
+
+	            /*
+                rect.watch();
+
+                function update2() {
+                    rect.attr({
+                        x: rect.attr('x'),
+                        y: rect.attr('y')
+                    })
+                    .style("fill", rect.style("fill"));
+                    setTimeout(update2, 50);
+                }
+                update2();
+                */
+
+	        }
+	    };
+    });
+    </script>
+</body>
+</html>
