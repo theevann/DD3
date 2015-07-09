@@ -512,19 +512,29 @@ var dd3 = (function () {
                 return;
             }
 
-            switch (data.action) {
-                case 'enter':
-                    log("Receiving an object entering...");
-                    _dd3_enterHandler(data);
+            switch (data.type) {
+                case 'shape':
+                    log("Receiving a new shape...");
+                    _dd3_shapeHandler(data);
                     break;
 
-                case 'update':
-                    _dd3_updateHandler(data);
+                case 'property':
+                    log("Receiving a property [" + data.function + (data.property ? (":" + data.property) : "") + "] update...");
+                    _dd3_propertyHandler(data);
                     break;
 
-                case 'exit':
-                    log("Receiving an object exiting...");
-                    _dd3_exitHandler(data);
+                case 'remove':
+                    log("Receiving an exiting shape...");
+                    _dd3_removeHandler(data);
+                    break;
+
+                case 'transition':
+                    log("Receiving a transition...");
+                    _dd3_transitionHandler(data);
+                    break;
+
+                case 'endTransition':
+                    // Maybe we rather should check at the end that the transition isn't there anymore...
                     break;
 
                 default:
@@ -532,10 +542,9 @@ var dd3 = (function () {
                     log(data, 2);
             }
 
-            
         };
 
-        var _dd3_enterHandler = function (data) {
+        var _dd3_shapeHandler = function (data) {
             var obj = d3.select("#" + data.sendId),
                 g = d3.select(data.container);
 
@@ -552,27 +561,11 @@ var dd3 = (function () {
                .attr("id", data.sendId);
         };
 
-        var _dd3_updateHandler = function (data) {
-            switch (data.type) {
-                case 'shape':
-                    log("Receiving an object update...");
-                    _dd3_enterHandler(data);
-                    break;
-                case 'property':
-                    log("Receiving a property [" + data.function + (data.property ? (":" + data.property) : "") + "] update...");
-                    _dd3_propertyUpdater(data);
-                    break;
-                default:
-                    log("Receiving an unexpected object : Not handled !", 2);
-                    log(data, 2);
-            }
-        }
-
-        var _dd3_exitHandler = function (data) {
+        var _dd3_removeHandler = function (data) {
             return d3.select(getContainingGroup(d3.select("#" + data.sendId).node())).remove();
         };
 
-        var _dd3_propertyUpdater = function (data) {
+        var _dd3_propertyHandler = function (data) {
             var obj = d3.select("#" + data.sendId);
 
             if (!obj.empty()) {
@@ -584,7 +577,22 @@ var dd3 = (function () {
                     obj[data.function].apply(obj, args);
                 }
             }
-        }
+        };
+
+        var _dd3_transitionHandler = function (data) {
+            var obj = d3.select("#" + data.sendId);
+            var trst =  _dd3_hook_selection_transition.call(obj, data.name);
+
+            log("taken delay: " + (data.delay + (syncTime + data.elapsed - Date.now())), 0);
+
+            trst.attr(data.attr)
+                .style(data.style)
+                .duration(data.duration)
+                .delay(data.delay + (syncTime + data.elapsed - Date.now()));
+
+            if(data.ease)
+                trst.ease(data.ease);
+        };
 
         var _dd3_CTMUpdater = function (obj, g, dataCtm) {
             // Get the group container ctm and create a new matrix for the incoming svg object
@@ -657,9 +665,11 @@ var dd3 = (function () {
                 signalR.syncCallback = function () {
                     syncTime = Date.now();
                     log("Synchronized !", 0);
-                    setTimeout(_, t || 0);
+                    _();
                 }
-                signalR.server.synchronize(signalR.sid);
+                setTimeout(function () {
+                    signalR.server.synchronize(signalR.sid);
+                }, t || 0);
             }
         })();
 
@@ -737,7 +747,7 @@ var dd3 = (function () {
                 })
 
                 if (!e.empty())
-                    e.send(funcName, arguments[0]);
+                    _dd3_selection_send.call(e, 'property', { 'function': funcName, 'property': arguments[0] });
 
                 return this;
             }
@@ -857,25 +867,60 @@ var dd3 = (function () {
             });
         };
 
-        _dd3.selection.prototype.send = function (funcName, propName) {
-            var counter = 0, formerRcpts, rcpt, rcpts = [], objs, selections;
+        var _dd3_mergeRecipients = function (a, b) {
+            var c = b.slice();
+            _dd3_mergeRecipientsIn(a, c);
+            return c;
+        };
+
+        var _dd3_addTransitionRecipients = function (elem, name, rcpt) {
+            elem.__dd3TR__ = elem.__dd3TR__ || d3.map();
+
+            elem.__dd3TR__.set(name, rcpt);
+
+            elem.__recipients_transitions__ = elem.__recipients_transitions__ || [];
+            _dd3_mergeRecipientsIn(rcpt, elem.__recipients_transitions__);
+        };
+
+        var _dd3_removeTransitionRecipients = function (elem, name) {
+            elem.__dd3TR__.remove(name);
+
+            elem.__recipients_transitions__ = [];
+            elem.__dd3TR__.forEach(function (k, v) {
+                _dd3_mergeRecipientsIn(v, elem.__recipients_transitions__);
+            });
+        };
+
+        _dd3.selection.prototype.send = function () {
+            return _dd3_selection_send.call(this, 'shape');
+        }
+
+        var _dd3_selection_send = function (type, args) {
+            var counter = 0, formerRcpts, transRcpts, rcpt, rcpts = [], objs, selections;
 
             this.each(function (d, i) {
+                if (type === "transition") {
+                    _dd3_addTransitionRecipients(this, args.ns, args.rcpt);
+                } else if (type == 'endTransition') {
+                    _dd3_removeTransitionRecipients(this, args.ns);
+                }
+
+                transRcpts = typeof this.__recipients_transitions__ === "undefined" ? [] : this.__recipients_transitions__;
                 // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
                 formerRcpts = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__;
                 // Get current recipients - See above the function _dd3_findRecipients for more info
-                rcpt = this.__recipients__ = _dd3_findRecipients(this);
+                rcpt = this.__recipients__ = _dd3_mergeRecipients(_dd3_findRecipients(this), transRcpts);
                 // Create (enter,update,exit) selections with the recipients - See above the function _dd3_getSelections for more info
                 selections = _dd3_getSelections(rcpt, formerRcpts);
 
                 if (rcpt.length > 0 || formerRcpts.length > 0) {
                     // Create the object to send
-                    objs = _dd3_dataFormatter(this, funcName ? 'property' : 'shape', selections, funcName, propName);
+                    objs = _dd3_dataFormatter(this, type, selections, args);
                     // Send it to all who may have to plot it
                     rcpt = _dd3_dataSender(objs, selections);
                     // Save all recipients to flush buffer for them afterwards
                     _dd3_mergeRecipientsIn(rcpt, rcpts);
-                    counter += rcpt.length;
+                    counter += rcpt.length; 
                 }
             });
 
@@ -889,12 +934,12 @@ var dd3 = (function () {
         };
 
         var _dd3_dataFormatter = (function () {
-            var sendId = 0,
-                actions = ['enter', 'update', 'exit'];
+            var sendId = 0;
 
             var createShapeObject = function (obj, elem) {
                 var idContainer = getIdentifiedContainer(elem);
 
+                obj.type = 'shape';
                 obj.attr = getAttr(elem);
                 obj.name = elem.nodeName;
                 obj.html = elem.innerHTML;
@@ -921,6 +966,7 @@ var dd3 = (function () {
 
             var createPropertyObject = function (obj, elem, f, p) {
                 obj.function = f;
+                obj.type = 'property';
 
                 switch (f) {
                     case 'attr':
@@ -952,9 +998,26 @@ var dd3 = (function () {
                         obj.value = elem.textContent;
                         break;
                     case 'remove':
-                        obj.action = 'exit';
+                        obj.type = 'remove';
                         break;
                 }
+            };
+
+            var createTransitionObject = function (obj, args) {
+                obj.type = 'transition';
+
+                obj.name = args.name;
+                obj.duration = args.duration;
+                obj.delay = args.delay;
+                obj.elapsed = args.elapsed;
+                obj.ease = args.ease;
+                obj.attr = {};
+                obj.style = {};
+
+                args.properties.forEach(function (p, i) {
+                    var d = p.split('.');
+                    obj[d[0]][d[1]] = args.endValues[i];
+                });                
             };
 
             var createCTMObject = function (elem) {
@@ -968,14 +1031,14 @@ var dd3 = (function () {
                 return copyCTMFromTo(ctm, {});
             };
 
-            return function (elem, type, selections, f, p) {
+            return function (elem, type, selections, args) {
 
                 // Bound sendId to the sent shape to be able to retrieve it later in recipients' dom
                 elem.__sendId__ = typeof elem.__sendId__ === "undefined" ? sendId++ : elem.__sendId__;
 
                 var objs = [],
                     obj = {
-                    type: type,
+                    type : 'remove',
                     sendId : "dd3_" + browser.row + '-' + browser.column + "_" + elem.__sendId__
                 };
 
@@ -986,19 +1049,31 @@ var dd3 = (function () {
                     }
 
                     var objTemp = clone(obj);
-                    objTemp.action = actions[i];
 
                     if (i === 0) { // If enter, in both cases we send a new shape
-                        createShapeObject(objTemp, elem);
+                        if (type === "transition") {
+                            var objTemp2 = clone(objTemp), objTemp3 = clone(objTemp);
+                            createShapeObject(objTemp2, elem);
+                            createTransitionObject(objTemp3, args);
+                            objTemp = [objTemp2, objTemp3];
+                        } else if (type === "endTransition") {
+                            log("You shouldn't even be seing this message !", 2);
+                        } else {
+                            createShapeObject(objTemp, elem);
+                        }
                     } else if (i === 1) { // If update...
                         if (type === 'shape') { // If we want to send the shape...
                             createShapeObject(objTemp, elem);
-                        } else if (type === 'property') { // otherwise, if we just want to update a property ...
-                            if (typeof p === 'string') {
-                                createPropertyObject(objTemp, elem, f, p);
-                            } else { // If we gave object as { property -> value, ... }
-                                objTemp = createPropertiesObject(objTemp, elem, f, p);
+                        } else if (type === 'property') { // Otherwise, if we just want to update a property ...
+                            if (typeof args.property === 'object') { // If we gave object as { property -> value, ... }
+                                objTemp = createPropertiesObject(objTemp, elem, args.function, args.property);
+                            } else { 
+                                createPropertyObject(objTemp, elem, args.function, args.property);
                             }
+                        } else if (type === "transition") {
+                            createTransitionObject(objTemp, args);
+                        } else if (type === "endTransition") {
+                            objTemp.type = 'endTransition';
                         }
                     }
 
@@ -1035,6 +1110,98 @@ var dd3 = (function () {
             });
             return this;
         };
+
+        /**
+		 * Transition
+		 */
+
+        var _dd3_precision = 0.01;
+
+        var _dd3_transitionNamespace = function (name) {
+            return name == null ? "__transition__" : "__transition_" + name + "__";
+        };
+
+        var _dd3_getTransitionRecipients = function (n, transition, d, i, startValues, endValues, properties) {
+            var node = n.cloneNode(true),
+                group = getContainingGroup(n),
+                tween = transition.tween,
+                tweened = [],
+                rcpts = [];
+
+            tween.forEach(function (key, value) {
+                if (value = value.call(n, n.__data__, i)) { // If you prefer to use node here, need to append it to group before !
+                    properties.push(key);
+                    tweened.push(value);
+                }
+            });
+
+            group.appendChild(node);
+            
+            d3.range(0, 1, _dd3_precision).forEach(function (d) {
+                tweened.forEach(function (t) {
+                    t.call(node, d);
+                });
+                _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
+            });
+
+            var d3_node = d3.select(node);
+            tweened.forEach(function (t, j) {
+                var ps = properties[j].split('.'),
+                    p0 = ps[0],
+                    p1 = typeof ps[1] !== "undefined" ? [ps[1]] : [];
+
+                t.call(node, 0);
+                startValues.push(d3_node[p0].apply(d3_node, p1));
+                t.call(node, 1);
+                endValues.push(d3_node[p0].apply(d3_node, p1));
+            });
+            _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
+
+            group.removeChild(node);
+
+            return rcpts;
+        };
+
+        var _dd3_hook_selection_transition = d3.selection.prototype.transition;
+
+        _dd3.selection.prototype.transition = function (name) {
+            var t = _dd3_hook_selection_transition.apply(this, arguments),
+                ns = _dd3_transitionNamespace(name),
+                ease;
+
+            t.each("start.dd3", function (d, i) {
+                var transition = this[ns][this[ns].active];
+                
+                var args = {
+                    startValues : [],
+                    endValues : [],
+                    properties : [],
+                    ns: ns,
+                    name: name,
+                    rcpt: [],
+                    elapsed : transition.time - syncTime,
+                    delay: transition.delay,
+                    duration : transition.duration,
+                    ease : ease
+                };
+
+                args.rcpt = _dd3_getTransitionRecipients(this, transition, d, i, args.startValues, args.endValues, args.properties);
+                console.log(args.startValues, args.endValues, args.properties, '[' + args.rcpt.join('] [') + ']');
+                _dd3_selection_send.call(d3.select(this), 'transition', args);
+            });
+
+            t.each("end.dd3", function (d, i) {
+                _dd3_selection_send.call(d3.select(this), 'endTransition', {ns: ns});
+            });
+
+            t.ease = function (e) {
+                ease = e;
+                return d3.selection.prototype.ease.call(this, arguments);
+            };
+
+            return t;
+        };
+
 
         /**
 		 * Getter
