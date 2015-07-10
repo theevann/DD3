@@ -984,6 +984,14 @@ var dd3 = (function () {
                 }
             };
 
+            var createTransitionsObject = function (obj, elem) {
+                return elem.__dd3_transitions__.values().map(function (v) {
+                    var objTemp = clone(obj);
+                    createTransitionObject(objTemp, v.args);
+                    return objTemp;
+                });
+            };
+
             var createTransitionObject = function (obj, args) {
                 obj.type = 'transition';
 
@@ -1032,13 +1040,13 @@ var dd3 = (function () {
                     var objTemp = clone(obj);
 
                     if (i === 0) { // If enter, in both cases we send a new shape
-                        if (type === "transition") {
-                            var objTemp2 = clone(objTemp), objTemp3 = clone(objTemp);
+                        if (type === "transitions") {
+                            var objTemp2 = clone(objTemp), objTemp3;
                             createShapeObject(objTemp2, elem);
-                            createTransitionObject(objTemp3, args);
+                            objTemp3 = createTransitionsObject(objTemp, elem);
                             objTemp = [objTemp2, objTemp3];
                         } else if (type === "endTransition") {
-                            log("You shouldn't even be seing this message !", 2);
+                            log("You shouldn't be seing this message - ask Evann !", 2);
                         } else {
                             createShapeObject(objTemp, elem);
                         }
@@ -1051,10 +1059,18 @@ var dd3 = (function () {
                             } else { 
                                 createPropertyObject(objTemp, elem, args.function, args.property);
                             }
-                        } else if (type === "transition") {
-                            createTransitionObject(objTemp, args);
+                        } else if (type === "transitions") {
+                            objTemp = createTransitionsObject(objTemp, elem);
                         } else if (type === "endTransition") {
                             objTemp.type = 'endTransition';
+                            obj.name = args.name;
+                            objTemp.remove = false;
+                        }
+                    } else {
+                        if (type === "transitions" || type === "endTransition") {
+                            objTemp.type = 'endTransition';
+                            obj.name = args.name;
+                            objTemp.remove = true;
                         }
                     }
 
@@ -1114,7 +1130,7 @@ var dd3 = (function () {
             transitionsInfos = elem.__dd3_transitions__.values().map(function (v) {
                 var trst = v.transition;
                 max = (trst.time + trst.duration) > max ? (trst.time + trst.duration) : max;
-                return { tweened: v.tweened, ease: d3.ease(v.ease), time: trst.time };
+                return { tweened: v.tweened, ease: d3.ease(v.ease), time: trst.time, duration: trst.duration };
             });
 
             group.appendChild(node);
@@ -1123,8 +1139,8 @@ var dd3 = (function () {
 
             d3.range(now, max, _dd3_precision * (max - now)).forEach(function (time) {
                 transitionsInfos.forEach(function (obj) {
-                    if ((time - obj.time) <= duration) {
-                        var t = obj.ease((time - obj.time) / duration);
+                    if ((time - obj.time) <= obj.duration) {
+                        var t = obj.ease((time - obj.time) / obj.duration);
                         obj.tweened.forEach(function (f) {
                             f.call(node, t);
                         });
@@ -1135,7 +1151,7 @@ var dd3 = (function () {
 
             group.removeChild(node);
 
-            return elem.__dd3_transitions__.recipients = rcpts;
+            return rcpts;
         };
 
         var _dd3_retrieveTransitionSettings = function (elem, args) {
@@ -1189,6 +1205,7 @@ var dd3 = (function () {
                 var args = {
                     endValues : [],
                     properties : [],
+                    tweened : [],
                     ns: ns,
                     name: name,
                     delay: transition.delay,
@@ -1197,17 +1214,20 @@ var dd3 = (function () {
                     ease : ease
                 };
 
+                _dd3_retrieveTransitionSettings(this, args);
                 this.__dd3_transitions__.set(ns, args);
 
                 _dd3_selection_send.call(d3.select(this), 'transitions');
             });
 
             t.each("interrupt.dd3", function (d, i) {
-                _dd3_selection_send.call(d3.select(this), 'endTransition', { ns: ns });
+                this.__dd3_transitions__.remove(ns);
+                _dd3_selection_send.call(d3.select(this), 'endTransition', { name: name });
             });
 
             t.each("end.dd3", function (d, i) {
-                _dd3_selection_send.call(d3.select(this), 'endTransition', {ns: ns});
+                this.__dd3_transitions__.remove(ns);
+                _dd3_selection_send.call(d3.select(this), 'endTransition', { name: name });
             });
 
             t.ease = function (e) {
