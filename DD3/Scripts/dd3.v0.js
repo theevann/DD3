@@ -534,7 +534,8 @@ var dd3 = (function () {
                     break;
 
                 case 'endTransition':
-                    // Maybe we rather should check at the end that the transition isn't there anymore...
+                    log("Receiving a end transition event...");
+                    _dd3_endTransitionHandler(data);
                     break;
 
                 default:
@@ -585,13 +586,23 @@ var dd3 = (function () {
 
             log("Delay taken: " + (data.delay + (syncTime + data.elapsed - Date.now())), 0);
 
-            trst.attr(data.attr)
-                .style(data.style)
+            obj.attr(data.start.attr)
+               .style(data.start.style);
+
+            trst.attr(data.end.attr)
+                .style(data.end.style)
                 .duration(data.duration)
                 .delay(data.delay + (syncTime + data.elapsed - Date.now()));
 
             if(data.ease)
                 trst.ease(data.ease);
+        };
+
+        var _dd3_endTransitionHandler = function (data) {
+            var obj = d3.select("#" + data.sendId);
+            obj.interrupt(data.name);
+            if (data.remove)
+                obj.remove();
         };
 
         var _dd3_CTMUpdater = function (obj, g, dataCtm) {
@@ -1000,23 +1011,28 @@ var dd3 = (function () {
                 obj.delay = args.delay;
                 obj.elapsed = args.transition.time - syncTime;
                 obj.ease = args.ease;
-                obj.attr = {};
-                obj.style = {};
+                obj.start = { attr: {}, style: {} };
+                obj.end = { attr: {}, style: {} };
 
                 args.properties.forEach(function (p, i) {
                     var d = p.split('.');
-                    obj[d[0]][d[1]] = args.endValues[i];
-                });                
+                    obj.start[d[0]][d[1]] = args.startValues[i];
+                    obj.end[d[0]][d[1]] = args.endValues[i];
+                });
             };
 
-            var createEndTransitionObject = function (obj, elem, remove) {
-
+            var createEndTransitionsObject = function (obj, elem, remove) {
+                return elem.__dd3_transitions__.values().map(function (v) {
+                    var objTemp = clone(obj);
+                    createEndTransitionObject(objTemp, v.name, remove);
+                    return objTemp;
+                });
             };
 
             var createEndTransitionObject = function (obj, name, remove) {
-                objTemp.type = 'endTransition';
+                obj.type = 'endTransition';
                 obj.name = name;
-                objTemp.remove = remove;
+                obj.remove = remove;
             };
 
             var createCTMObject = function (elem) {
@@ -1159,6 +1175,7 @@ var dd3 = (function () {
 
             group.removeChild(node);
 
+            log("Computed probable recipients: [" + rcpts.join('],[') + ']', 0);
             return rcpts;
         };
 
@@ -1168,7 +1185,8 @@ var dd3 = (function () {
                 tween = args.transition.tween,
                 tweened = [],
                 properties = [],
-                endValues;
+                startValues = [],
+                endValues = [];
 
             tween.forEach(function (key, value) {
                 if (value = value.call(elem, args.data, args.index)) {
@@ -1180,17 +1198,20 @@ var dd3 = (function () {
             group.appendChild(node);
 
             var d3_node = d3.select(node);
-            endValues = tweened.map(function (f, j) {
+            tweened.forEach(function (f, j) {
                 var ps = properties[j].split('.'),
                     p0 = ps[0],
                     p1 = typeof ps[1] !== "undefined" ? [ps[1]] : [];
 
+                f.call(node, 0);
+                startValues.push(d3_node[p0].apply(d3_node, p1));
                 f.call(node, 1);
-                return d3_node[p0].apply(d3_node, p1);
+                endValues.push(d3_node[p0].apply(d3_node, p1));
             });
 
             group.removeChild(node);
 
+            args.startValues = startValues;
             args.endValues = endValues;
             args.tweened = tweened;
             args.properties = properties;
@@ -1210,6 +1231,8 @@ var dd3 = (function () {
             t.each("start.dd3", function (d, i) {
                 var transition = this[ns][this[ns].active];
                 
+                log("APPEL A START.DD3 POUR " + ns, 2);
+
                 var args = {
                     endValues : [],
                     properties : [],
