@@ -885,7 +885,7 @@ var dd3 = (function () {
             var counter = 0, formerRcpts, rcpt, rcpts = [], objs, selections;
 
             this.each(function (d, i) {
-                var active = (this.__dd3_transitions__ && this.__dd3_transitions__.size() > 0).
+                var active = (this.__dd3_transitions__ && this.__dd3_transitions__.size() > 0);
 
                 // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
                 formerRcpts = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__;
@@ -987,7 +987,7 @@ var dd3 = (function () {
             var createTransitionsObject = function (obj, elem) {
                 return elem.__dd3_transitions__.values().map(function (v) {
                     var objTemp = clone(obj);
-                    createTransitionObject(objTemp, v.args);
+                    createTransitionObject(objTemp, v);
                     return objTemp;
                 });
             };
@@ -1007,6 +1007,16 @@ var dd3 = (function () {
                     var d = p.split('.');
                     obj[d[0]][d[1]] = args.endValues[i];
                 });                
+            };
+
+            var createEndTransitionObject = function (obj, elem, remove) {
+
+            };
+
+            var createEndTransitionObject = function (obj, name, remove) {
+                objTemp.type = 'endTransition';
+                obj.name = name;
+                objTemp.remove = remove;
             };
 
             var createCTMObject = function (elem) {
@@ -1062,15 +1072,13 @@ var dd3 = (function () {
                         } else if (type === "transitions") {
                             objTemp = createTransitionsObject(objTemp, elem);
                         } else if (type === "endTransition") {
-                            objTemp.type = 'endTransition';
-                            obj.name = args.name;
-                            objTemp.remove = false;
+                            createEndTransitionObject(objTemp, args.name, false);
                         }
                     } else {
-                        if (type === "transitions" || type === "endTransition") {
-                            objTemp.type = 'endTransition';
-                            obj.name = args.name;
-                            objTemp.remove = true;
+                        if (type === "transitions") {
+                            createEndTransitionsObject(objTemp, elem, true);
+                        } else if (type === "endTransition") {
+                            createEndTransitionObject(objTemp, args.name, true);
                         }
                     }
 
