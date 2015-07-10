@@ -582,6 +582,7 @@ var dd3 = (function () {
 
         var _dd3_transitionHandler = function (data) {
             var obj = d3.select("#" + data.sendId);
+            obj.interrupt(data.name);
             var trst =  _dd3_hook_selection_transition.call(obj, data.name);
 
             log("Delay taken: " + (data.delay + (syncTime + data.elapsed - Date.now())), 0);
@@ -827,6 +828,8 @@ var dd3 = (function () {
 
         // Find all browsers which MAY need to receive the element
         var _dd3_findRecipients = function (el) {
+            if (!el)
+                return [];
             // Take the bounding rectangle and find browsers at the extremities of it (topleft and bottomright are enough)
             // Add as recipients every browsers inside the 2 browsers found above
             // An improvement could be to check if there is an interesection between the shape and a browser
@@ -897,6 +900,9 @@ var dd3 = (function () {
 
             this.each(function (d, i) {
                 var active = (this.__dd3_transitions__ && this.__dd3_transitions__.size() > 0);
+
+                if (active && (type === "shape" || type === "property"))
+                    type = 'transitions'
 
                 // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
                 formerRcpts = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__;
@@ -1072,7 +1078,7 @@ var dd3 = (function () {
                             objTemp3 = createTransitionsObject(objTemp, elem);
                             objTemp = [objTemp2, objTemp3];
                         } else if (type === "endTransition") {
-                            log("You shouldn't be seing this message - ask Evann !", 2);
+                            log("You shouldn't be seing this message !", 2);
                         } else {
                             createShapeObject(objTemp, elem);
                         }
@@ -1143,6 +1149,9 @@ var dd3 = (function () {
         };
 
         var _dd3_findTransitionsRecipients = function (elem) {
+            if (!elem)
+                return [];
+
             var node = elem.cloneNode(true),
                 group = getContainingGroup(elem),
                 transitionsInfos,
@@ -1175,7 +1184,7 @@ var dd3 = (function () {
 
             group.removeChild(node);
 
-            log("Computed probable recipients: [" + rcpts.join('],[') + ']', 0);
+            log("Computed in " + (Date.now() - now)/1000 + "s probable recipients: [" + rcpts.join('],[') + ']', 2);
             return rcpts;
         };
 
@@ -1231,8 +1240,6 @@ var dd3 = (function () {
             t.each("start.dd3", function (d, i) {
                 var transition = this[ns][this[ns].active];
                 
-                log("APPEL A START.DD3 POUR " + ns, 2);
-
                 var args = {
                     endValues : [],
                     properties : [],
