@@ -990,7 +990,7 @@ var dd3 = (function () {
                 obj.name = args.name;
                 obj.duration = args.duration;
                 obj.delay = args.delay;
-                obj.elapsed = args.elapsed;
+                obj.elapsed = args.transition.time - syncTime;
                 obj.ease = args.ease;
                 obj.attr = {};
                 obj.style = {};
@@ -1105,28 +1105,16 @@ var dd3 = (function () {
         var _dd3_findTransitionsRecipients = function (elem) {
             var node = elem.cloneNode(true),
                 group = getContainingGroup(elem),
-                transitionsInfos = [],
+                transitionsInfos,
                 tween,
                 rcpts = [],
                 now = Date.now(),
                 max = 0;
 
-            elem.__dd3_transitions__.forEach(function (k, v) {
-                var tweened = [],
-                    properties = [];
-
-                v.transition.tween.forEach(function (key, value) {
-                    if (value = value.call(elem, v.data, v.index)) { // If you prefer to use node here, need to append it to group before !
-                        properties.push(key);
-                        tweened.push(value);
-                        max = (v.transition.time + v.duration) > max ? (v.transition.time + v.duration) : max;
-                    }
-                });
-
-                // Update this value before sending...
-                v.elapsed = v.transition.time - syncTime;
-                v.properties = properties;
-                transitionsInfos.push({ tweened: tweened, ease: d3.ease(v.ease), time: v.transition.time });
+            transitionsInfos = elem.__dd3_transitions__.values().map(function (v) {
+                var trst = v.transition;
+                max = (trst.time + trst.duration) > max ? (trst.time + trst.duration) : max;
+                return { tweened: v.tweened, ease: d3.ease(v.ease), time: trst.time };
             });
 
             group.appendChild(node);
@@ -1146,6 +1134,42 @@ var dd3 = (function () {
             });
 
             group.removeChild(node);
+
+            return elem.__dd3_transitions__.recipients = rcpts;
+        };
+
+        var _dd3_retrieveTransitionSettings = function (elem, args) {
+            var node = elem.cloneNode(true),
+                group = getContainingGroup(elem),
+                tween = args.transition.tween,
+                tweened = [],
+                properties = [],
+                endValues;
+
+            tween.forEach(function (key, value) {
+                if (value = value.call(elem, args.data, args.index)) {
+                    properties.push(key);
+                    tweened.push(value);
+                }
+            });
+
+            group.appendChild(node);
+
+            var d3_node = d3.select(node);
+            endValues = tweened.map(function (f, j) {
+                var ps = properties[j].split('.'),
+                    p0 = ps[0],
+                    p1 = typeof ps[1] !== "undefined" ? [ps[1]] : [];
+
+                f.call(node, 1);
+                return d3_node[p0].apply(d3_node, p1);
+            });
+
+            group.removeChild(node);
+
+            args.endValues = endValues;
+            args.tweened = tweened;
+            args.properties = properties;
         };
 
         var _dd3_hook_selection_transition = d3.selection.prototype.transition;
@@ -1163,12 +1187,10 @@ var dd3 = (function () {
                 var transition = this[ns][this[ns].active];
                 
                 var args = {
-                    startValues : [],
                     endValues : [],
                     properties : [],
                     ns: ns,
                     name: name,
-                    elapsed : transition.time - syncTime,
                     delay: transition.delay,
                     duration: transition.duration,
                     transition : transition,
