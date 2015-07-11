@@ -1,4 +1,4 @@
-/**
+﻿/**
 *   Version 0.0.1
 */
 
@@ -901,8 +901,10 @@ var dd3 = (function () {
             this.each(function (d, i) {
                 var active = (this.__dd3_transitions__ && this.__dd3_transitions__.size() > 0);
 
+                /*
                 if (active && (type === "shape" || type === "property"))
                     type = 'transitions'
+                */
 
                 // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
                 formerRcpts = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__;
@@ -913,7 +915,7 @@ var dd3 = (function () {
 
                 if (rcpt.length > 0 || formerRcpts.length > 0) {
                     // Create the object to send
-                    objs = _dd3_dataFormatter(this, type, selections, args);
+                    objs = _dd3_dataFormatter(this, type, selections, args, active);
                     // Send it to all who may have to plot it
                     rcpt = _dd3_dataSender(objs, selections);
                     // Save all recipients to flush buffer for them afterwards
@@ -1052,7 +1054,7 @@ var dd3 = (function () {
                 return copyCTMFromTo(ctm, {});
             };
 
-            return function (elem, type, selections, args) {
+            return function (elem, type, selections, args, active) {
 
                 // Bound sendId to the sent shape to be able to retrieve it later in recipients' dom
                 elem.__sendId__ = typeof elem.__sendId__ === "undefined" ? sendId++ : elem.__sendId__;
@@ -1072,15 +1074,10 @@ var dd3 = (function () {
                     var objTemp = clone(obj);
 
                     if (i === 0) { // If enter, in both cases we send a new shape
-                        if (type === "transitions") {
-                            var objTemp2 = clone(objTemp), objTemp3;
-                            createShapeObject(objTemp2, elem);
-                            objTemp3 = createTransitionsObject(objTemp, elem);
-                            objTemp = [objTemp2, objTemp3];
-                        } else if (type === "endTransition") {
-                            log("You shouldn't be seing this message !", 2);
-                        } else {
-                            createShapeObject(objTemp, elem);
+                        createShapeObject(objTemp, elem);
+
+                        if (active) {
+                            objTemp = [objTemp, createTransitionsObject(clone(obj), elem)];
                         }
                     } else if (i === 1) { // If update...
                         if (type === 'shape') { // If we want to send the shape...
@@ -1095,6 +1092,10 @@ var dd3 = (function () {
                             objTemp = createTransitionsObject(objTemp, elem);
                         } else if (type === "endTransition") {
                             createEndTransitionObject(objTemp, args.name, false);
+                        }
+
+                        if (active && type !== "transitions" && type !== "endTransition") {
+                            objTemp = [objTemp, createTransitionsObject(clone(obj), elem)];
                         }
                     } else {
                         if (type === "transitions") {
