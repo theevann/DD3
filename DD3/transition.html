@@ -33,7 +33,7 @@ body {
     <script src="Scripts/dd3.v0.js"></script>
 
     <script>
-    var start;
+        var init1, init2, start1, start2, start3, t1, t2, t3;
 
     dd3.on('ready', function () {
 	    
@@ -71,55 +71,64 @@ body {
             .attr("dominant-baseline", "text-before-edge")
             .attr("transform", 'translate(' + [p.left(0), p.top(0)] + ')');
 
-	    if (r == 0 && c == 0) {
-	        var rect = svg
-                    .append('rect')
-                    .attr("id", "test");
-	    }
+        
+	    var rect = svg
+            .append('rect')
+            .attr("id", "test");
+
+	    init2 = function () {
+	        svg.selectAll(".c").data(d3.range(100)).enter()
+                .append('circle')
+                .attr("class", "c");
+
+	        svg.selectAll(".c")
+                .attr("cx", function () { return width * Math.random(); })
+                .attr("cy", function () { return height * Math.random(); })
+                .attr("r", function () { return 10 * Math.random() + 10; })
+                .attr("stroke", "black")
+                .attr("fill", "#FFF")
+                .watch();
+	    };
+
+	    init1 = function () {
+	        rect.attr("x", width / 10)
+                .attr("y", 4.5 * height / 10)
+                .attr("width", width / 10)
+                .attr("height", height / 10)
+                .attr("stroke", "black")
+                .style("fill", "#EEE")
+                .attr("fill", "rgb(29, 219, 29)")
+                .text("None")
+                .watch();
+	    };
 
 	    dd3.synchronize();
 
-	    start = function () {
-	        if (r == 0 && c == 0) {
-	            rect.attr("x", width / 10)
-                    .attr("y", 4.5 * height / 10)
-                    .attr("width", width / 10)
-                    .attr("height", height / 10)
-                    .attr("stroke", "black")
-                    .style("fill", "#EEE")
-                    .attr("fill", "rgb(29, 219, 29)")
-                    .text("None")
-                    .watch();
+	    start1 = function (name) {
+	        t1 = rect.transition(name)
+                .duration(10000)
+                .style("fill", "#AAA")
+                .attr('x', 8 * width / 10)
+                .text("test")
+                .transition()
+                .duration(5000)
+                .attr('x', width / 10);
+	    };
 
-	            rect.transition()
-                    .duration(40000)
-                    .style("fill", "#AAA")
-                    .attr('x', 8 * width / 10)
-                    .text("test")
-                    .attr('y', 8 * height / 10);
-	            /*
-                function update1() {
-                    rect.send();
-                    setTimeout(update, 50);
-                }
-                update1();
-                */
+	    start2 = function (name) {
+	        t2 = rect.transition(name)
+                .duration(40000)
+                .attr('y', 8 * height / 10);
+	    };
 
-	            /*
-                rect.watch();
-
-                function update2() {
-                    rect.attr({
-                        x: rect.attr('x'),
-                        y: rect.attr('y')
-                    })
-                    .style("fill", rect.style("fill"));
-                    setTimeout(update2, 50);
-                }
-                update2();
-                */
-
-	        }
+	    start3 = function (name) {
+	        t3 = svg.selectAll(".c")
+                .transition()
+                .duration(20000)
+                .delay(5000)
+                .attr("cx", function () { return width * Math.random(); })
+                .attr("cy", function () { return height * Math.random(); })
+                .attr("r", function () { return 20 * Math.random() + 5; });
 	    };
     });
     </script>
