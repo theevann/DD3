@@ -758,9 +758,7 @@ var dd3 = (function () {
                     return original.apply(this, arguments);
                 original.apply(this, arguments);
 
-                var e = this.filter(function (d, i) {
-                    return !!this.__watch__;
-                })
+                var e = _dd3_filterWatched(this);
 
                 if (!e.empty())
                     _dd3_selection_send.call(e, 'property', { 'function': funcName, 'property': arguments[0] });
@@ -789,6 +787,32 @@ var dd3 = (function () {
         _dd3.selection.prototype.property = _dd3_watchFactory(d3.selection.prototype.property, 'property', 2);
 
         _dd3.selection.prototype.remove = _dd3_watchFactory(d3.selection.prototype.remove, 'remove', 0);
+
+
+
+        var _dd3_filterWatched = function (e) {
+            return e.filter(function (d, i) {
+                return !!this.__watch__;
+            })
+        };
+
+        var _dd3_selection_select = function (elem) {
+            elem.forEach(_dd3_select);
+        };
+
+        var _dd3_select = function (elem) {
+            elem.__recipients__ = elem.__recipients__ || [];
+            if (!elem.__dd3_transitions__)
+                elem.__dd3_transitions__ = d3.map();
+                //_dd3_retrieveTransitions(elem);
+        };
+        
+        var _dd3_unselect = function (elem) {
+            delete elem.__recipients__;
+            delete elem.__dd3_transitions__;
+        };
+        
+
 
 
         var _dd3_getSelections = function (newSelection, oldSelection) {
@@ -892,25 +916,22 @@ var dd3 = (function () {
         };
 
         _dd3.selection.prototype.send = function () {
+            _dd3_selection_select(this);
             return _dd3_selection_send.call(this, 'shape');
         }
 
-        var _dd3_selection_send = function (type, args) {
+        var _dd3_selection_send = function (type, args, recompute) {
             var counter = 0, formerRcpts, rcpt, rcpts = [], objs, selections;
+            recompute = _dd3_default(recompute, true);
 
             this.each(function (d, i) {
-                var active = (this.__dd3_transitions__ && this.__dd3_transitions__.size() > 0);
-
-                /*
-                if (active && (type === "shape" || type === "property"))
-                    type = 'transitions'
-                */
+                var active = this.__dd3_transitions__.size() > 0;
 
                 // Get former recipients list saved in the __recipients__ variable to send them 'exit' message
-                formerRcpts = typeof this.__recipients__ === "undefined" ? [] : this.__recipients__;
-                // Get current recipients - See above the function _dd3_findRecipients for more info
+                formerRcpts = this.__recipients__;
+                // Get current recipients
                 rcpt = this.__recipients__ = active ? _dd3_findTransitionsRecipients(this) : _dd3_findRecipients(this);
-                // Create (enter,update,exit) selections with the recipients - See above the function _dd3_getSelections for more info
+                // Create (enter,update,exit) selections with the recipients
                 selections = _dd3_getSelections(rcpt, formerRcpts);
 
                 if (rcpt.length > 0 || formerRcpts.length > 0) {
@@ -929,7 +950,7 @@ var dd3 = (function () {
             
             if (counter > 0)
                 log("Sending " + counter + " object" + (counter > 1 ? "s" : "") + "...");
-            // We may choose to return only sent objects ... to be decided !
+
             return this;
         };
 
@@ -1073,36 +1094,45 @@ var dd3 = (function () {
 
                     var objTemp = clone(obj);
 
-                    if (i === 0) { // If enter, in both cases we send a new shape
-                        createShapeObject(objTemp, elem);
-
-                        if (active) {
-                            objTemp = [objTemp, createTransitionsObject(clone(obj), elem)];
-                        }
-                    } else if (i === 1) { // If update...
-                        if (type === 'shape') { // If we want to send the shape...
+                    switch (i) {
+                        case 0:  // If enter, in all cases we send a new shape
                             createShapeObject(objTemp, elem);
-                        } else if (type === 'property') { // Otherwise, if we just want to update a property ...
-                            if (typeof args.property === 'object') { // If we gave object as { property -> value, ... }
-                                objTemp = createPropertiesObject(objTemp, elem, args.function, args.property);
-                            } else { 
-                                createPropertyObject(objTemp, elem, args.function, args.property);
-                            }
-                        } else if (type === "transitions") {
-                            objTemp = createTransitionsObject(objTemp, elem);
-                        } else if (type === "endTransition") {
-                            createEndTransitionObject(objTemp, args.name, false);
-                        }
 
-                        if (active && type !== "transitions" && type !== "endTransition") {
-                            objTemp = [objTemp, createTransitionsObject(clone(obj), elem)];
-                        }
-                    } else {
-                        if (type === "transitions") {
-                            createEndTransitionsObject(objTemp, elem, true);
-                        } else if (type === "endTransition") {
-                            createEndTransitionObject(objTemp, args.name, true);
-                        }
+                            if (active) {
+                                objTemp = [objTemp, createTransitionsObject(clone(obj), elem)];
+                            }
+                            break;
+
+                        case 1: // If update...
+
+                            if (type === 'shape') { // If we want to send the shape...
+                                createShapeObject(objTemp, elem);
+                            } else if (type === 'property') { // Otherwise, if we just want to update a property ...
+                                if (typeof args.property === 'object') { // If we gave object as { property -> value, ... }
+                                    objTemp = createPropertiesObject(objTemp, elem, args.function, args.property);
+                                } else {
+                                    createPropertyObject(objTemp, elem, args.function, args.property);
+                                }
+                            } else if (type === "endTransition") {
+                                createEndTransitionObject(objTemp, args.name, false);
+                            }
+
+                            if (active && type !== "endTransition") {
+                                var array = [createTransitionsObject(clone(obj), elem)];
+                                if (type !== "transitions")
+                                    array.unshift(objTemp);
+                                objTemp = array;
+                            }
+                            break;
+
+                        case 2:
+
+                            if (type === "transitions") {
+                                createEndTransitionsObject(objTemp, elem, true);
+                            } else if (type === "endTransition") {
+                                createEndTransitionObject(objTemp, args.name, true);
+                            }
+                            break;
                     }
 
                     objs.push(objTemp);
@@ -1125,15 +1155,17 @@ var dd3 = (function () {
         };
 
         _dd3.selection.prototype.watch = function () {
-            this.send();
             this.each(function (d, i) {
+                _dd3_select(this);
                 this.__watch__ = true;
             });
+            this.send();
             return this;
         };
 
         _dd3.selection.prototype.unwatch = function () {
             this.each(function (d, i) {
+                _dd3_unselect(this);
                 this.__watch__ = false;
             });
             return this;
@@ -1159,22 +1191,25 @@ var dd3 = (function () {
                 tween,
                 rcpts = [],
                 now = Date.now(),
-                max = 0;
+                max = 0,
+                precision = 1;
 
             transitionsInfos = elem.__dd3_transitions__.values().map(function (v) {
                 var trst = v.transition;
-                max = (trst.time + trst.duration) > max ? (trst.time + trst.duration) : max;
-                return { tweened: v.tweened, ease: d3.ease(v.ease), time: trst.time, duration: trst.duration };
+                max = (trst.time + trst.duration + trst.delay) > max ? (trst.time + trst.duration + trst.delay) : max;
+                precision = v.precision < precision ? v.precision : precision;
+                return { tweened: v.tweened, ease: d3.ease(v.ease), time: trst.time + trst.delay, duration: trst.duration };
             });
 
             group.appendChild(node);
             
             // ! Doesn't take in account order of the transitions !
 
-            d3.range(now, max, _dd3_precision * (max - now)).forEach(function (time) {
+            d3.range(now, max, precision * (max - now)).forEach(function (time) {
                 transitionsInfos.forEach(function (obj) {
-                    if ((time - obj.time) <= obj.duration) {
-                        var t = obj.ease((time - obj.time) / obj.duration);
+                    var a = (time - obj.time) / obj.duration;
+                    if (a >= 0 && a <= 1) {
+                        var t = obj.ease(a);
                         obj.tweened.forEach(function (f) {
                             f.call(node, t);
                         });
@@ -1229,57 +1264,73 @@ var dd3 = (function () {
 
         var _dd3_hook_selection_transition = d3.selection.prototype.transition;
 
+        var _dd3_hook_transition_transition = d3.transition.prototype.transition;
+
         _dd3.selection.prototype.transition = function (name) {
-            var t = _dd3_hook_selection_transition.apply(this, arguments),
+            var t = _dd3_filterWatched(_dd3_hook_selection_transition.apply(this, arguments)),
                 ns = _dd3_transitionNamespace(name),
-                ease = "cubic-in-out";
+                ease = "cubic-in-out",
+                precision = _dd3_precision;
+            
+            var initialize = function (t, ease, precision) {
 
-            t.each(function () {
-                this.__dd3_transitions__ = this.__dd3_transitions__ || d3.map();
-            });
-
-            t.each("start.dd3", function (d, i) {
-                var transition = this[ns][this[ns].active];
+                t.each("start.dd3", function (d, i) {
+                    var transition = this[ns][this[ns].active];
                 
-                var args = {
-                    endValues : [],
-                    properties : [],
-                    tweened : [],
-                    ns: ns,
-                    name: name,
-                    delay: transition.delay,
-                    duration: transition.duration,
-                    transition : transition,
-                    ease : ease
+                    var args = {
+                        endValues : [],
+                        properties : [],
+                        tweened : [],
+                        ns: ns,
+                        name: name,
+                        delay: transition.delay,
+                        duration: transition.duration,
+                        transition : transition,
+                        precision : precision,
+                        ease : ease
+                    };
+
+                    _dd3_retrieveTransitionSettings(this, args);
+                    this.__dd3_transitions__.set(ns, args);
+
+                    _dd3_selection_send.call(d3.select(this), 'transitions');
+                });
+
+                t.each("interrupt.dd3", function (d, i) {
+                    this.__dd3_transitions__.remove(ns);
+                    _dd3_selection_send.call(d3.select(this), 'endTransition', { name: name });
+                });
+
+                t.each("end.dd3", function (d, i) {
+                    this.__dd3_transitions__.remove(ns);
+                    _dd3_selection_send.call(d3.select(this), 'endTransition', { name: name });
+                });
+
+                t.ease = function (e) {
+                    if (typeof e !== "string") {
+                        log("Custom ease functions not supported", 2);
+                        return this;
+                    }
+                    ease = e;
+                    return d3.selection.prototype.ease.call(this, arguments);
                 };
 
-                _dd3_retrieveTransitionSettings(this, args);
-                this.__dd3_transitions__.set(ns, args);
-
-                _dd3_selection_send.call(d3.select(this), 'transitions');
-            });
-
-            t.each("interrupt.dd3", function (d, i) {
-                this.__dd3_transitions__.remove(ns);
-                _dd3_selection_send.call(d3.select(this), 'endTransition', { name: name });
-            });
-
-            t.each("end.dd3", function (d, i) {
-                this.__dd3_transitions__.remove(ns);
-                _dd3_selection_send.call(d3.select(this), 'endTransition', { name: name });
-            });
-
-            t.ease = function (e) {
-                if (typeof e !== "string") {
-                    log("Custom ease functions not supported", 2);
+                t.precision = function (p) {
+                    if (arguments.length < 1) return precision;
+                    precision = p;
                     return this;
-                }
-                ease = e;
-                return d3.selection.prototype.ease.call(this, arguments);
-            };
+                };
 
-            return t;
+                t.transition = function () {
+                    return initialize(_dd3_filterWatched(_dd3_hook_transition_transition.apply(this, arguments)), ease, precision);
+                };
+
+                return t;
+            }
+
+            return initialize(t, ease, precision);
         };
+
 
 
         /**
