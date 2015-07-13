@@ -550,9 +550,27 @@ var dd3 = (function () {
                 g = d3.select(data.container);
 
             // If id of the container doesn't exist in the receiver dom, take 'svg g' instead
-            g = g.empty() ? _dd3.svgCanvas : g;
+            //g = g.empty() ? _dd3.svgCanvas : g;
+            
+
             // Make it clean by appending the svg object into a group to which we apply the transformation
-            obj = obj.empty() ? g.append("g").append(data.name) : obj;
+            if (obj.empty()) {
+
+                var groups = d3.selectAll(data.container + " > .dd3_received"),
+                    gId = data.sendId + "_g",
+                    currentFollower = "z";
+
+                groups[0].forEach(function (a) {
+                    if (a.id > gId && a.id < currentFollower) {
+                        currentFollower = a.id;
+                    }
+                });
+
+                obj = g.insert("g", '#' + currentFollower)
+                    .classed('dd3_received', true)
+                    .attr("id", gId)
+                    .append(data.name);
+            }
 
             // Update the CTM of the group containing the appended element (not the container retrieved through data.container)
             _dd3_CTMUpdater(obj, g, data.ctm);
@@ -603,7 +621,7 @@ var dd3 = (function () {
             var obj = d3.select("#" + data.sendId);
             obj.interrupt(data.name);
             if (data.remove)
-                obj.remove();
+                _dd3_removeHandler(data);
         };
 
         var _dd3_CTMUpdater = function (obj, g, dataCtm) {
