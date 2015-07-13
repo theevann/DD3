@@ -54,10 +54,11 @@ function log (message, sev) {
 	var sevMessage = ["Debug", "Info", "Warning", "Error", "Critical"];
 	var consoleFunction = ["debug", "log", "warn", "warn", "error"];
 	log.sev = typeof log.sev === "undefined" ? 0 : log.sev;
-	
+	arr = (dd3 && dd3.browser) ? [dd3.browser().row, dd3.browser().column] : [];
+
 	sev = clamp(sev || 0, 0, 4);
 	if (log.sev <= sev) {
-		console[consoleFunction[sev]]("(" + sevMessage[sev] + ")  " + message);
+	    console[consoleFunction[sev]]("(" + sevMessage[sev] + ")  [" + arr + "] " + message);
 	}
 }
 
