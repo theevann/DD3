@@ -87,7 +87,7 @@ var dd3 = (function () {
 			Connect to peer server => Get peerId
 			Connect to signalR server => Send browser information
 									  => Receive configuration
-			Connect to data api => Get data and metadata [emulated in js]
+			Connect to data api => Get metadata [emulated in js]
 		*/
 
         var init = function () {
@@ -149,25 +149,37 @@ var dd3 = (function () {
                 log('Connected to peer server - id : ' + id, 1);
                 peer.id = id;
 
-                p.on('connection', function (c) {
+                p.on('connection', function (conn) {
                     // Previous loss of data : the buffering in peer.js seems not to work anymore,
                     // and data have to be sent only when connection is opened (connection != open)
+                    var r = +conn.metadata.initiator[0],
+                        c = +conn.metadata.initiator[1];
 
-                    peer.peers.some(function (p) {
-                        if (p.peerId !== c.peer)
-                            return false;
-                        peer.connections[p.row][p.col] = true;
-                        peer.buffers[p.row][p.col] = [];
-                        c.on("open", function () { peer.connect(c, p.row, p.col); });
-                        return true;
-                    });
+                    // If there is already a connection, we allow only one connection to remain active
+                    // The priority is given to higher row browsers, and if equal then higher colmun
+                    if (peer.connections[r][c]) {
+                        var priority = r > browser.row || (r === browser.row && c > browser.column);
+
+                        if (!priority) {
+                            conn.on("open", conn.close);
+                            return;
+                        }
+
+                        peer.connections[r][c].open ?
+                        peer.connections[r][c].close() :
+                        peer.connections[r][c].removeAllListeners().on("open", peer.connections[r][c].close);
+                    }
+
+                    peer.connections[r][c] = conn;
+                    peer.buffers[r][c] = peer.buffers[r][c] || [];
+                    conn.on("open", peer.init.bind(null, conn, r, c));
                 });
 
                 callback();
             });
 
             p.on("error", function (e) {
-                if (e.type === "network" || e.type === "unavailable-id") {
+                if (e.type === "network") {
                     log("[Peer] " + e, 4);
                     state("fatal");
                 } else {
@@ -442,6 +454,7 @@ var dd3 = (function () {
 		    .attr("width", browser.width)
 		    .attr("height", browser.height)
 		    .append("g")
+            .attr("id", "dd3_rootGroup")
 		    .attr("transform", "translate(" + [browser.margin.left - slsg.left(0), browser.margin.top - slsg.top(0)] + ")");
 
         /**
@@ -449,44 +462,38 @@ var dd3 = (function () {
          * dataHandler
          */
 
-        // To Do, problem of double connection to same peer
-        peer.connect = function (conn, r, c) {
-            log("Connection with established Peer (" + [r,c] + "): " + conn.peer, 0);
-
+        peer.init = function (conn, r, c) {
+            log("Connection established with Peer (" + [r,c] + "): " + conn.peer, 0);
             conn.on("data", peer.receive);
-            // Once we are connected : 
-            //  -> we save the connection in the 2 dimensional array representing the cave
-            peer.connections[r][c] = conn;
-            //  -> we flush the buffered data
             peer.flush(r, c);
         };
 
-        peer.sendTo = function (r, c, data, buffer) {
-            var conn;
+        peer.connect = function (r, c) {
             r = +r;
             c = +c;
 
-            if (typeof peer.connections[r][c] === "undefined") {
-
-                // Try to find peer with r and c as row and column - use Array.some to stop when found
-                var check = peer.peers.some(function (p) {
-                    if (+p.row !== r || +p.col !== c)
-                        return false;
-
-                    conn = peer.peer.connect(p.peerId, { reliable: true });
-                    conn.on("open", function () { peer.connect(conn, r, c); });
-                    peer.connections[r][c] = true;
-                    peer.buffers[r][c] = [];
-                    return true;
-                })
-
-                // If there is no such peer
-                if (!check)
+            // Try to find peer with r and c as row and column - use Array.some to stop when found
+            return peer.peers.some(function (p) {
+                if (+p.row !== r || +p.col !== c)
                     return false;
+
+                var conn = peer.peer.connect(p.peerId, { reliable: true, metadata: { initiator: [browser.row, browser.column] } });
+                conn.on("open", peer.init.bind(null, conn, r, c));
+                peer.connections[r][c] = conn;
+                peer.buffers[r][c] = [];
+                return true;
+            });
+        };
+
+        peer.sendTo = function (r, c, data, buffer) {
+
+            if (typeof peer.connections[r][c] === "undefined" && !peer.connect(r, c)) {
+                // If there is no such peer
+                return false;
             }
 
             // If connection is being established or we asked to buffer, we buffer - else we send
-            if (peer.connections[r][c] === true || buffer) {
+            if (!peer.connections[r][c].open || buffer) {
                 peer.buffers[r][c].push(data);
             } else {
                 peer.connections[r][c].send(data);
@@ -496,10 +503,10 @@ var dd3 = (function () {
         };
 
         peer.flush = function (r, c) {
-            var b = peer.buffers[r][c],
-                co = peer.connections[r][c];
-            if (b && b.length > 0 && co && co.open) {
-                co.send(b);
+            var buff = peer.buffers[r][c],
+                conn = peer.connections[r][c];
+            if (buff && buff.length > 0 && conn && conn.open) {
+                conn.send(buff);
                 peer.buffers[r][c] = [];
                 return true;
             }
@@ -545,56 +552,58 @@ var dd3 = (function () {
 
         };
 
+        var getIdFollower = function (g, id) {
+            var elems = g.selectAll("#" + g.node().id + " > .dd3_received"),
+                currentFollower = "z";
+
+            elems[0].forEach(function (a) {
+                if (a.id > id && a.id < currentFollower) {
+                    currentFollower = a.id;
+                }
+            });
+
+            return currentFollower;
+        };
+
         var _dd3_shapeHandler = function (data) {
             var obj = d3.select("#" + data.sendId),
-                g = d3.select(data.container);
+                g1 = d3.select("#" + data.containers.shift()), g2,
+                c = false; // Whether the object was changed of group since last time
 
-            // If id of the container doesn't exist in the receiver dom, take 'svg g' instead
-            //g = g.empty() ? _dd3.svgCanvas : g;
+            if (g1.empty()) {
+                log("One of the group received doesn't exist in the dom - An group with an id must exist in every browsers !", 2);
+                return;
+            }
             
+            data.containers.forEach(function (o) {
+                g2 = g1.select("#" + o.id);
+                g1 = g2.empty() ? (c = true, g1.insert('g', '#' + getIdFollower(g1, o.id)).attr_(o)) : g2;
+            });
 
-            // Make it clean by appending the svg object into a group to which we apply the transformation
-            if (obj.empty()) {
-
-                var groups = d3.selectAll(data.container + " > .dd3_received"),
-                    gId = data.sendId + "_g",
-                    currentFollower = "z";
-
-                groups[0].forEach(function (a) {
-                    if (a.id > gId && a.id < currentFollower) {
-                        currentFollower = a.id;
-                    }
-                });
-
-                obj = g.insert("g", '#' + currentFollower)
-                    .classed('dd3_received', true)
-                    .attr("id", gId)
-                    .append(data.name);
+            // Here we create an absolute ordering in one group
+            if (obj.empty() || c) {
+                obj.remove();
+                obj = g1.insert(data.name, '#' + getIdFollower(g1, data.sendId));
             }
 
-            // Update the CTM of the group containing the appended element (not the container retrieved through data.container)
-            _dd3_CTMUpdater(obj, g, data.ctm);
-
-            obj.attr(data.attr)
-               .html(data.html)
-               .attr("id", data.sendId);
+            obj.attr_(data.attr)
+               .html_(data.html)
+               .classed_('dd3_received', true)
+               .attr_("id", data.sendId); // Here because attr can contain id
         };
 
         var _dd3_removeHandler = function (data) {
-            return d3.select(getContainingGroup(d3.select("#" + data.sendId).node())).remove();
+            return d3.select("#" + data.sendId).remove_();
         };
 
         var _dd3_propertyHandler = function (data) {
             var obj = d3.select("#" + data.sendId);
-
+            
             if (!obj.empty()) {
-                if (data.property === "transform") {
-                    var g = d3.select(data.container), g = g.empty() ? _dd3.svgCanvas : g;
-                    _dd3_CTMUpdater(obj, g, data.ctm);
-                } else {
-                    var args = typeof data.property !== "undefined" ? [data.property, data.value] : [data.value];
-                    obj[data.function].apply(obj, args);
-                }
+                var args = typeof data.property !== "undefined" ? [data.property, data.value] : [data.value];
+                obj[data.function].apply(obj, args)
+                    .classed_('dd3_received', true)
+                    .attr_("id", data.sendId);
             }
         };
 
@@ -605,8 +614,8 @@ var dd3 = (function () {
 
             log("Delay taken: " + (data.delay + (syncTime + data.elapsed - Date.now())), 0);
 
-            obj.attr(data.start.attr)
-               .style(data.start.style);
+            obj.attr_(data.start.attr)
+               .style_(data.start.style);
 
             trst.attr(data.end.attr)
                 .style(data.end.style)
@@ -623,6 +632,10 @@ var dd3 = (function () {
             if (data.remove)
                 _dd3_removeHandler(data);
         };
+
+        /**
+        *  ! Deprecated !
+        */
 
         var _dd3_CTMUpdater = function (obj, g, dataCtm) {
             // Get the group container ctm and create a new matrix for the incoming svg object
@@ -646,7 +659,7 @@ var dd3 = (function () {
         };
 
         /**
-		 * Hook helper functions for d3
+		 *  Hook helper functions for d3
 		 */
 
         var _dd3_hook_d3 = function (hook, newObj) {
@@ -686,7 +699,7 @@ var dd3 = (function () {
         };
 
         /**
-         * dd3.synchronize
+         *  dd3.synchronize
          */
 
         // Send a message to server to synchronize after the optionnal timeout,
@@ -707,8 +720,10 @@ var dd3 = (function () {
             }
         })();
 
+
+
         /**
-		 * dd3.scale : deprecated - old implementation
+		 *  dd3.scale : deprecated - old implementation
 		 */
 
         _dd3.scale = Object.create(d3.scale);
@@ -742,7 +757,7 @@ var dd3 = (function () {
         };
 
         /**
-		 * dd3.svg.axis : deprecated - old implementation
+		 *  dd3.svg.axis : deprecated - old implementation
 		 */
 
         _dd3.svg = Object.create(d3.svg);
@@ -770,29 +785,38 @@ var dd3 = (function () {
             return dd3_axis;
         };
 
+
+        /**
+		*  dd3.selection
+		*/
+
+        _dd3.selection = d3.selection;
+
         var _dd3_watchFactory = function (original, funcName, expectedArg) {
+            _dd3.selection.prototype[funcName + '_'] = original;
+
             var f = function () {
                 if (arguments.length < expectedArg && typeof arguments[0] !== 'object')
                     return original.apply(this, arguments);
                 original.apply(this, arguments);
 
-                var e = _dd3_filterWatched(this);
+                var e = _dd3_selection_createProperties(_dd3_selection_filterWatched(this));
 
                 if (!e.empty())
                     _dd3_selection_send.call(e, 'property', { 'function': funcName, 'property': arguments[0] });
 
                 return this;
             }
+/*
+            var g = g || function (_) { return _; };
+            var h = h || function (_) { return ['property', { 'function': funcName, 'property': _[0] }]; };
+*/
             return f ;
         };
 
-        /**
-		* dd3.selection
-		*/
-
-        _dd3.selection = d3.selection;
-
-        _dd3.selection.prototype.attr = _dd3_watchFactory(d3.selection.prototype.attr, 'attr', 2);
+        _dd3.selection.prototype.attr = _dd3_watchFactory(d3.selection.prototype.attr, 'attr', 2, function (s, a) {
+            return (a[0] === "id") ? d3.select() : s;
+        });
 
         _dd3.selection.prototype.style = _dd3_watchFactory(d3.selection.prototype.style, 'style', 2);
 
@@ -807,31 +831,9 @@ var dd3 = (function () {
         _dd3.selection.prototype.remove = _dd3_watchFactory(d3.selection.prototype.remove, 'remove', 0);
 
 
-
-        var _dd3_filterWatched = function (e) {
-            return e.filter(function (d, i) {
-                return !!this.__watch__;
-            })
-        };
-
-        var _dd3_selection_select = function (elem) {
-            elem.forEach(_dd3_select);
-        };
-
-        var _dd3_select = function (elem) {
-            elem.__recipients__ = elem.__recipients__ || [];
-            if (!elem.__dd3_transitions__)
-                elem.__dd3_transitions__ = d3.map();
-                //_dd3_retrieveTransitions(elem);
-        };
-        
-        var _dd3_unselect = function (elem) {
-            delete elem.__recipients__;
-            delete elem.__dd3_transitions__;
-        };
-        
-
-
+        /**
+        *  Function for sending data
+        */
 
         var _dd3_getSelections = function (newSelection, oldSelection) {
             var ns = newSelection.slice(),
@@ -881,7 +883,7 @@ var dd3 = (function () {
             var rcpt = [];
             var rect = el.getBoundingClientRect(); // Relative to local html
 
-            if (rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) {
+            if ((rect.bottom > browser.height || rect.top < 0 || rect.right > browser.width || rect.left < 0) && (rect.width != 0 && rect.height != 0)) {
                 var f = hlhg,
                     topLeft = _dd3_findBrowserAt(f.left(rect.left), f.top(rect.top), 'html'),
 		            bottomRight = _dd3_findBrowserAt(f.left(rect.right), f.top(rect.bottom), 'html');
@@ -934,13 +936,12 @@ var dd3 = (function () {
         };
 
         _dd3.selection.prototype.send = function () {
-            _dd3_selection_select(this);
+            _dd3_selection_createProperties(this);
             return _dd3_selection_send.call(this, 'shape');
         }
 
-        var _dd3_selection_send = function (type, args, recompute) {
+        var _dd3_selection_send = function (type, args) {
             var counter = 0, formerRcpts, rcpt, rcpts = [], objs, selections;
-            recompute = _dd3_default(recompute, true);
 
             this.each(function (d, i) {
                 var active = this.__dd3_transitions__.size() > 0;
@@ -963,34 +964,30 @@ var dd3 = (function () {
                 }
             });
 
-            // If we chose to buffer, then we need to flush buffers for recipients !
+            // We buffered so we need to flush buffer of recipients !
             rcpts.forEach(function (d) { peer.flush(d[0], d[1]); });
             
             if (counter > 0)
-                log("Sending " + counter + " object" + (counter > 1 ? "s" : "") + "...");
+                log("Sending " + type + " to " + counter + " recipients...");
 
             return this;
         };
 
         var _dd3_dataFormatter = (function () {
-            var sendId = 0;
+            var sendId = 1;
+
+            //- Functions for creating objects to be send
 
             var createShapeObject = function (obj, elem) {
-                var idContainer = getIdentifiedContainer(elem);
+                var groups = getParentGroups(elem);
 
                 obj.type = 'shape';
                 obj.attr = getAttr(elem);
                 obj.name = elem.nodeName;
                 obj.html = elem.innerHTML;
-
-                // Remove any transformation on the object as we handle it with the ctm
-                obj.attr.transform = null;
-
-                // Create the CTM Object to send
-                obj.ctm = createCTMObject(elem);
-
+                
                 // Remember the container to keep the drawing order (superposition)
-                obj.container = idContainer;
+                obj.containers = groups;
             };
 
             var createPropertiesObject = function (obj, elem, f, props) {
@@ -1004,18 +1001,25 @@ var dd3 = (function () {
             };
 
             var createPropertyObject = function (obj, elem, f, p) {
-                obj.function = f;
-                obj.type = 'property';
+                if (f === "remove") {
+                    obj.type = 'property';
+                } else {
+                    obj.type = 'property';
+                    obj.function = f;
 
+                    if (f !== "text" && f !== "html") {
+                        obj.value = d3.select(elem)[f + '_'](obj.property = p);
+                    } else {
+                        obj.value = d3.select(elem)[f + '_']();
+                    }
+                }
+
+                
+                /*
                 switch (f) {
                     case 'attr':
                         obj.property = p;
-                        if (p === "transform") {
-                            obj.ctm = createCTMObject(elem);
-                            obj.container = getIdentifiedContainer(elem);
-                        } else {
-                            obj.value = elem.attributes[p].nodeValue;
-                        }
+                        obj.value = elem.attributes[p].nodeValue;
                         break;
                     case 'style':
                         obj.property = p;
@@ -1023,12 +1027,11 @@ var dd3 = (function () {
                         break;
                     case 'classed':
                         obj.property = p;
-                        obj.value = d3.select(elem).classed(p) || null;
+                        obj.value = d3.select(elem).classed(p);
                         break;
                     case 'property':
                         obj.property = p;
                         obj.value = d3.select(elem).property(p);
-                        obj.value = typeof obj.value !== 'undefined' ? obj.value : null;
                         break;
                     case 'html':
                         obj.value = elem.innerHTML;
@@ -1040,6 +1043,7 @@ var dd3 = (function () {
                         obj.type = 'remove';
                         break;
                 }
+                */
             };
 
             var createTransitionsObject = function (obj, elem) {
@@ -1082,6 +1086,7 @@ var dd3 = (function () {
                 obj.remove = remove;
             };
 
+            // Deprecated
             var createCTMObject = function (elem) {
                 var ctm = elem.getCTM();
 
@@ -1093,15 +1098,35 @@ var dd3 = (function () {
                 return copyCTMFromTo(ctm, {});
             };
 
+            //- Helper functions
+
+            var getParentGroups = function (elem) {
+                var containers = [], g = elem.parentNode;
+
+                do {
+                    if (g.id === "") {
+                        g.__sendId__ = g.__sendId__ || sendId++;
+                        containers.unshift({ 'id': getSendId(g.__sendId__), 'transform': g.getAttribute("transform"), 'class': (g.getAttribute("class") || "") + ' dd3_received'});                    } else {
+                        containers.unshift(g.id);
+                    }
+                } while (g.id === "" && (g = g.parentNode));
+
+                return containers;
+            };
+
+            var getSendId = function (id) {
+                return ("dd3_" + browser.row + '-' + browser.column + "_" + id);
+            };
+
             return function (elem, type, selections, args, active) {
 
                 // Bound sendId to the sent shape to be able to retrieve it later in recipients' dom
-                elem.__sendId__ = typeof elem.__sendId__ === "undefined" ? sendId++ : elem.__sendId__;
+                elem.__sendId__ = elem.__sendId__ || sendId++;
 
                 var objs = [],
                     obj = {
                     type : 'remove',
-                    sendId : "dd3_" + browser.row + '-' + browser.column + "_" + elem.__sendId__
+                    sendId : getSendId(elem.__sendId__)
                 };
 
                 selections.forEach(function (s, i) {
@@ -1172,25 +1197,57 @@ var dd3 = (function () {
             return d3.merge(selections);
         };
 
+
+        /**
+        *  Watch methods
+        */
+
+
         _dd3.selection.prototype.watch = function () {
             this.each(function (d, i) {
-                _dd3_select(this);
-                this.__watch__ = true;
+                if (this.__unwatch__) delete this.__unwatch__;
             });
-            this.send();
             return this;
         };
 
         _dd3.selection.prototype.unwatch = function () {
             this.each(function (d, i) {
-                _dd3_unselect(this);
-                this.__watch__ = false;
+                this.__unwatch__ = true;
             });
             return this;
         };
 
+        var _dd3_selection_createProperties = function (elem) {
+            elem.each(function () { _dd3_createProperties(this); });
+            return elem;
+        };
+
+        var _dd3_selection_deleteProperties = function (elem) {
+            elem.each(function () { _dd3_deleteProperties(this); });
+            return elem;
+        };
+
+        var _dd3_createProperties = function (elem) {
+            elem.__recipients__ = elem.__recipients__ || [];
+            if (!elem.__dd3_transitions__)
+                elem.__dd3_transitions__ = d3.map();
+            //_dd3_retrieveTransitions(elem);
+        };
+
+        var _dd3_deleteProperties = function (elem) {
+            delete elem.__recipients__;
+            delete elem.__dd3_transitions__;
+        };
+
+        var _dd3_selection_filterWatched = function (e) {
+            return e.filter(function (d, i) {
+                return !this.__unwatch__ && ([].indexOf.call(this.classList, 'dd3_received') < 0);
+            })
+        };
+
+
         /**
-		 * Transition
+		 *  Transition
 		 */
 
         var _dd3_precision = 0.01;
@@ -1238,7 +1295,7 @@ var dd3 = (function () {
 
             group.removeChild(node);
 
-            log("Computed in " + (Date.now() - now)/1000 + "s probable recipients: [" + rcpts.join('],[') + ']', 2);
+            //log("Computed in " + (Date.now() - now)/1000 + "s probable recipients: [" + rcpts.join('],[') + ']', 2);
             return rcpts;
         };
 
@@ -1285,7 +1342,7 @@ var dd3 = (function () {
         var _dd3_hook_transition_transition = d3.transition.prototype.transition;
 
         _dd3.selection.prototype.transition = function (name) {
-            var t = _dd3_filterWatched(_dd3_hook_selection_transition.apply(this, arguments)),
+            var t = _dd3_selection_filterWatched(_dd3_hook_selection_transition.apply(this, arguments)),
                 ns = _dd3_transitionNamespace(name),
                 ease = "cubic-in-out",
                 precision = _dd3_precision;
@@ -1340,7 +1397,7 @@ var dd3 = (function () {
                 };
 
                 t.transition = function () {
-                    return initialize(_dd3_filterWatched(_dd3_hook_transition_transition.apply(this, arguments)), ease, precision);
+                    return initialize(_dd3_selection_filterWatched(_dd3_hook_transition_transition.apply(this, arguments)), ease, precision);
                 };
 
                 return t;
@@ -1350,9 +1407,8 @@ var dd3 = (function () {
         };
 
 
-
         /**
-		 * Getter
+		 *  Getter
 		 */
 
         _dd3.dataPoints = function () { return data.dataPoints.slice(); };
@@ -1380,13 +1436,13 @@ var dd3 = (function () {
     };
 
     /**
-	 * Initialize
+	 *  Initialize
 	 */
 
     initializer();
 
     /**
-	* Provide listener function to listen for ready state !
+	*  Provide listener function to listen for ready state !
 	*/
 
     _dd3.on = function (p, f) {
@@ -1402,20 +1458,6 @@ var dd3 = (function () {
 
 
 /*
-Recent fix, for temporary memory if needed
-
-var int = setInterval(function () {
-    log("Connection state : " + (c.open ? "Open " : "Closed ") + browser.row + "," + browser.column);
-    if (c.open) {
-        clearInterval(int);
-        //c.send("Hi it's (" + browser.row + "," + browser.column + ")");
-        c.send(data);
-    }
-}, 100);
-*/
-
-
-/*
 If object is a shape
 
 obj = {
@@ -1427,66 +1469,45 @@ obj = {
     container: null
 };
 */
+
 /*
+var node = n.cloneNode(true),
+        group = getContainingGroup(n),
+        tween = transition.tween,
+        tweened = [],
+        rcpts = [];
 
-var _dd3_addTransitionRecipients = function (elem, name, rcpt) {
-    elem.__dd3TR__ = elem.__dd3TR__ || d3.map();
-
-    elem.__dd3TR__.set(name, rcpt);
-
-    elem.__recipients_transitions__ = elem.__recipients_transitions__ || [];
-    _dd3_mergeRecipientsIn(rcpt, elem.__recipients_transitions__);
-};
-
-var _dd3_removeTransitionRecipients = function (elem, name) {
-    elem.__dd3TR__.remove(name);
-
-    elem.__recipients_transitions__ = [];
-    elem.__dd3TR__.forEach(function (k, v) {
-        _dd3_mergeRecipientsIn(v, elem.__recipients_transitions__);
+    tween.forEach(function (key, value) {
+        if (value = value.call(n, n.__data__, i)) { // If you prefer to use node here, need to append it to group before !
+            properties.push(key);
+            tweened.push(value);
+        }
     });
-};
-*/
 
-/*
-
-       var node = n.cloneNode(true),
-                group = getContainingGroup(n),
-                tween = transition.tween,
-                tweened = [],
-                rcpts = [];
-
-            tween.forEach(function (key, value) {
-                if (value = value.call(n, n.__data__, i)) { // If you prefer to use node here, need to append it to group before !
-                    properties.push(key);
-                    tweened.push(value);
-                }
-            });
-
-            group.appendChild(node);
+    group.appendChild(node);
             
-            d3.range(0, 1, _dd3_precision).forEach(function (d) {
-                tweened.forEach(function (t) {
-                    t.call(node, d);
-                });
-                _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
-            });
+    d3.range(0, 1, _dd3_precision).forEach(function (d) {
+        tweened.forEach(function (t) {
+            t.call(node, d);
+        });
+        _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
+    });
 
-            var d3_node = d3.select(node);
-            tweened.forEach(function (t, j) {
-                var ps = properties[j].split('.'),
-                    p0 = ps[0],
-                    p1 = typeof ps[1] !== "undefined" ? [ps[1]] : [];
+    var d3_node = d3.select(node);
+    tweened.forEach(function (t, j) {
+        var ps = properties[j].split('.'),
+            p0 = ps[0],
+            p1 = typeof ps[1] !== "undefined" ? [ps[1]] : [];
 
-                t.call(node, 0);
-                startValues.push(d3_node[p0].apply(d3_node, p1));
-                t.call(node, 1);
-                endValues.push(d3_node[p0].apply(d3_node, p1));
-            });
-            _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
+        t.call(node, 0);
+        startValues.push(d3_node[p0].apply(d3_node, p1));
+        t.call(node, 1);
+        endValues.push(d3_node[p0].apply(d3_node, p1));
+    });
+    _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
 
-            group.removeChild(node);
+    group.removeChild(node);
 
-            return rcpts;
+    return rcpts;
 
-            */
+    */

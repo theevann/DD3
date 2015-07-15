@@ -95,18 +95,6 @@ function getAttr (el) {
     return objf;
 }
 
-//Maybe should check that container != svg at the beggining
-function getIdentifiedContainer(el) {
-    var container;
-
-    while (!container && (el = el.parentNode)) {
-        if (el.id !== "" || el.nodeName.toLowerCase() === 'svg')
-            container = el;
-    } 
-
-    return (container.id !== "" ? ("#" + container.id) : 'svg g');
-}
-
 function getContainingGroup(el) {
     var container;
 
