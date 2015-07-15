@@ -55,17 +55,20 @@ body {
             .attr("stroke", "brown")
             .attr("fill", "#BBB");
 
-	    svg
+        svg.append('g')
+            .attr("transform","translate(20,10)")
             .append('rect')
-            .attr("x", 0)
-            .attr("y", 0)
+            .unwatch()
+            .attr("x", -20)
+            .attr("y", -10)
             .attr("width", width)
             .attr("height", height)
             .attr("stroke", "black")
             .attr("fill", "transparent");
 
 
-	    svg.append("text")
+        svg.append("text")
+            .unwatch()
             .text([r, c])
             .attr("font-size", 40)
             .attr("dominant-baseline", "text-before-edge")
@@ -76,18 +79,19 @@ body {
             .append('rect')
             .attr("id", "test");
 
+	    var circleGroup = svg.append("g").attr("id", "cg");
+
 	    init2 = function () {
-	        svg.selectAll(".c").data(d3.range(100)).enter()
+	        circleGroup.selectAll(".c").data(d3.range(100)).enter()
                 .append('circle')
                 .attr("class", "c");
 
-	        svg.selectAll(".c")
+	        circleGroup.selectAll(".c")
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
                 .attr("r", function () { return 10 * Math.random() + 10; })
                 .attr("stroke", "black")
-                .attr("fill", "#FFF")
-                .watch();
+                .attr("fill", "#FFF");
 	    };
 
 	    init1 = function () {
@@ -98,10 +102,9 @@ body {
                 .attr("stroke", "black")
                 .style("fill", "#EEE")
                 .attr("fill", "rgb(29, 219, 29)")
-                .text("None")
-                .watch();
+                .text("None");
 	    };
-
+            
 	    dd3.synchronize();
 
 	    start1 = function (name) {
@@ -122,10 +125,9 @@ body {
 	    };
 
 	    start3 = function (name) {
-	        t3 = svg.selectAll(".c")
+	        t3 = circleGroup.selectAll(".c")
                 .transition()
                 .duration(20000)
-                .delay(5000)
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
                 .attr("r", function () { return 20 * Math.random() + 5; });

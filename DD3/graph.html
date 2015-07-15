@@ -15,6 +15,14 @@
         shape-rendering: crispEdges;
     }
 
+    .test {
+        display : none;
+    }
+
+    .red {
+        fill : red;
+    }
+
     .dot {
         stroke: #000;
     }
@@ -80,7 +88,9 @@
 	      .style("text-anchor", "end")
 	      .text("GDP");
 
-	    svg.selectAll('rect')
+	    svg.append("g")
+          .attr("id", "rect")
+          .selectAll('rect')
           .data(barData)
           .enter()
           .append('rect')
@@ -97,6 +107,17 @@
           .attr('stroke-width', '2')
           .watch();
 
+        /*
+	    var t = svg.append("g")
+                .attr("id", "text")
+                .append("g")
+                .attr("transform", "translate(" + (dd3.browser().column * dd3.browser().width - 10) + "," + (dd3.browser().row * dd3.browser().height - 10) + ")")
+                .append("text")
+                .text("HELLO")
+                .attr("id", "testStyle")
+                .watch();
+        //*/
+
         var color = d3.scale.category20(),
             i = 0;
         
@@ -105,21 +126,28 @@
                 var randomGDP = dim.gdp.max * Math.random();
                 svg.selectAll('rect')
                   .data(barData)
+                  .transition()
+                  .duration(5000)
+                  .precision(0.1)
                   .attr('fill', function () { return color(i); })
-                  .attr('y', function (d) {
-                      return (yScale(randomGDP));
-                  })
-                  .attr('height', function (d) {
-                      return (yScale(0) - yScale(randomGDP));
+                  .attr({
+                      'y': function (d) {
+                          return (yScale(randomGDP));
+                       },
+                      'height': function (d) {
+                         return (yScale(0) - yScale(randomGDP));
+                      }
                   });
                 i++;
 
-                if (i % 10 == 0) {
+                //t.style("font-size", Math.random() * 50 + 10).html("TEST n°" + ~~(Math.random()*10000));
+
+                if (i % 5 == 0) {
                     dd3.synchronize(f);
                 } else {
                     f();
                 }
-            }, 3000);
+            }, 6000);
         };
 
         dd3.synchronize(f, 5000);
