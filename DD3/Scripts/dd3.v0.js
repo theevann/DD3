@@ -1,5 +1,5 @@
 ﻿/**
-*   Version 0.0.1
+*   Version 0.0.2
 */
 
 var peerObject = { key: 'q35ylav1jljo47vi', debug: 0 };
