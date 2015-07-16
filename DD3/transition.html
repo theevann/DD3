@@ -66,6 +66,7 @@ body {
             .attr("stroke", "black")
             .attr("fill", "transparent");
 
+	    var circleGroup = svg.append("g").attr("id", "cg");
 
         svg.append("text")
             .unwatch()
@@ -74,15 +75,25 @@ body {
             .attr("dominant-baseline", "text-before-edge")
             .attr("transform", 'translate(' + [p.left(0), p.top(0)] + ')');
 
-        
-	    var rect = svg
+        var rect = svg
             .append('rect')
             .attr("id", "test");
 
-	    var circleGroup = svg.append("g").attr("id", "cg");
-
 	    init2 = function () {
 	        circleGroup.selectAll(".c").data(d3.range(100)).enter()
+                .append('circle')
+                .attr("class", "c");
+
+	        circleGroup.selectAll(".c")
+                .attr("cx", function () { return width * Math.random(); })
+                .attr("cy", function () { return height * Math.random(); })
+                .attr("r", function () { return 10 * Math.random() + 10; })
+                .attr("stroke", "black")
+                .attr("fill", "#FFF");
+	    };
+
+	    var init3 = function () {
+	        circleGroup.selectAll(".c").data(d3.range(10)).enter()
                 .append('circle')
                 .attr("class", "c");
 
@@ -105,8 +116,6 @@ body {
                 .text("None");
 	    };
             
-	    dd3.synchronize();
-
 	    start1 = function (name) {
 	        t1 = rect.transition(name)
                 .duration(10000)
@@ -128,10 +137,20 @@ body {
 	        t3 = circleGroup.selectAll(".c")
                 .transition()
                 .duration(20000)
+                .precision(0.05)
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
                 .attr("r", function () { return 20 * Math.random() + 5; });
 	    };
+
+        /*
+	    init3();
+	    var f = function () {
+	        start3();
+	        setTimeout(f, 21000);
+	    };
+	    dd3.synchronize(f, 5000);
+        */
     });
     </script>
 </body>

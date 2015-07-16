@@ -553,7 +553,7 @@ var dd3 = (function () {
         };
 
         var getIdFollower = function (g, id) {
-            var elems = g.selectAll("#" + g.node().id + " > .dd3_received"),
+            var elems = g.selectAll_("#" + g.node().id + " > .dd3_received"),
                 currentFollower = "z";
 
             elems[0].forEach(function (a) {
@@ -577,13 +577,13 @@ var dd3 = (function () {
             
             data.containers.forEach(function (o) {
                 g2 = g1.select("#" + o.id);
-                g1 = g2.empty() ? (c = true, g1.insert('g', '#' + getIdFollower(g1, o.id)).attr_(o)) : g2;
+                g1 = g2.empty() ? (c = true, g1.insert_('g', '#' + getIdFollower(g1, o.id)).attr_(o)) : g2;
             });
 
             // Here we create an absolute ordering in one group
             if (obj.empty() || c) {
-                obj.remove();
-                obj = g1.insert(data.name, '#' + getIdFollower(g1, data.sendId));
+                obj.remove_();
+                obj = g1.insert_(data.name, '#' + getIdFollower(g1, data.sendId));
             }
 
             obj.attr_(data.attr)
@@ -619,8 +619,13 @@ var dd3 = (function () {
 
             trst.attr(data.end.attr)
                 .style(data.end.style)
-                .duration(data.duration)
-                .delay(data.delay + (syncTime + data.elapsed - Date.now()));
+                .duration(data.duration);
+
+            if (_dd3_timeTransitionRelative)
+                trst.delay(data.delay + (syncTime + data.elapsed - Date.now()));
+            else
+                trst.delay(data.delay + (data.elapsed - Date.now()));
+
 
             if(data.ease)
                 trst.ease(data.ease);
@@ -792,10 +797,13 @@ var dd3 = (function () {
 
         _dd3.selection = d3.selection;
 
-        var _dd3_watchFactory = function (original, funcName, expectedArg) {
+        var _dd3_watchFactory = function (watcher, original, funcName) {
             _dd3.selection.prototype[funcName + '_'] = original;
+            return watcher.apply(null, [].slice.call(arguments, 1));
+        };
 
-            var f = function () {
+        var _dd3_watchChange = function (original, funcName, expectedArg) {
+            return function () {
                 if (arguments.length < expectedArg && typeof arguments[0] !== 'object')
                     return original.apply(this, arguments);
                 original.apply(this, arguments);
@@ -807,48 +815,42 @@ var dd3 = (function () {
 
                 return this;
             }
-/*
-            var g = g || function (_) { return _; };
-            var h = h || function (_) { return ['property', { 'function': funcName, 'property': _[0] }]; };
-*/
-            return f ;
         };
 
-        _dd3.selection.prototype.attr = _dd3_watchFactory(d3.selection.prototype.attr, 'attr', 2, function (s, a) {
-            return (a[0] === "id") ? d3.select() : s;
-        });
-
-        _dd3.selection.prototype.style = _dd3_watchFactory(d3.selection.prototype.style, 'style', 2);
-
-        _dd3.selection.prototype.html = _dd3_watchFactory(d3.selection.prototype.html, 'html', 1);
-
-        _dd3.selection.prototype.text = _dd3_watchFactory(d3.selection.prototype.text, 'text', 1);
-
-        _dd3.selection.prototype.classed = _dd3_watchFactory(d3.selection.prototype.classed, 'classed', 2);
-
-        _dd3.selection.prototype.property = _dd3_watchFactory(d3.selection.prototype.property, 'property', 2);
-
-        _dd3.selection.prototype.remove = _dd3_watchFactory(d3.selection.prototype.remove, 'remove', 0);
-
-        var temp = d3.selection.prototype.append;
-        _dd3.selection.enter.prototype.append = _dd3.selection.prototype.append = function () {
-            var t = temp.apply(this, arguments);
-            t.each(function () {
-                if (this.parentNode.__unwatch__)
-                    _dd3_unwatch.call(this);
-            });
-            return t;
+        var _dd3_watchAdd = function (original) {
+            return function () {
+                return original.apply(this, arguments).each(function () {
+                    if (this.parentNode.__unwatch__)
+                        _dd3_unwatch.call(this);
+                });
+            };
         };
 
-        var temp3 = d3.selection.prototype.insert;
-        _dd3.selection.prototype.insert = function () {
-            var t = temp3.apply(this, arguments);
-            t.each(function () {
-                if (this.parentNode.__unwatch__)
-                    _dd3_unwatch.call(this);
-            });
-            return t;
-        };
+        _dd3.selection.prototype.attr = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.attr, 'attr', 2);
+
+        _dd3.selection.prototype.style = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.style, 'style', 2);
+
+        _dd3.selection.prototype.html = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.html, 'html', 1);
+
+        _dd3.selection.prototype.text = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.text, 'text', 1);
+
+        _dd3.selection.prototype.classed = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.classed, 'classed', 2);
+
+        _dd3.selection.prototype.property = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.property, 'property', 2);
+
+        _dd3.selection.prototype.remove = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.remove, 'remove', 0);
+
+        _dd3.selection.prototype.insert = _dd3_watchFactory(_dd3_watchAdd, d3.selection.prototype.insert, 'insert');
+
+        _dd3.selection.enter.prototype.append = _dd3.selection.prototype.append = _dd3_watchFactory(_dd3_watchAdd, d3.selection.prototype.append, 'append');
+
+        _dd3.selection.prototype.selectAll = _dd3_watchFactory(function (original) {
+            return function () {
+                var t = original.apply(this, arguments);
+                return _dd3_selection_filterUnreceived(t);
+            }
+        }, d3.selection.prototype.selectAll, 'selectAll');
+
 
         /**
         *  Function for sending data
@@ -1079,7 +1081,7 @@ var dd3 = (function () {
                 obj.name = args.name;
                 obj.duration = args.duration;
                 obj.delay = args.delay;
-                obj.elapsed = args.transition.time - syncTime;
+                obj.elapsed = _dd3_timeTransitionRelative ? args.transition.time - syncTime : args.transition.time;
                 obj.ease = args.ease;
                 obj.start = { attr: {}, style: {} };
                 obj.end = { attr: {}, style: {} };
@@ -1268,10 +1270,17 @@ var dd3 = (function () {
             })
         };
 
+        var _dd3_selection_filterUnreceived = function (e) {
+            return e.filter(function (d, i) {
+                return ([].indexOf.call(this.classList, 'dd3_received') < 0);
+            })
+        };
 
         /**
 		 *  Transition
 		 */
+        
+        var _dd3_timeTransitionRelative = false;
 
         var _dd3_precision = 0.01;
 
@@ -1492,45 +1501,3 @@ obj = {
     container: null
 };
 */
-
-/*
-var node = n.cloneNode(true),
-        group = getContainingGroup(n),
-        tween = transition.tween,
-        tweened = [],
-        rcpts = [];
-
-    tween.forEach(function (key, value) {
-        if (value = value.call(n, n.__data__, i)) { // If you prefer to use node here, need to append it to group before !
-            properties.push(key);
-            tweened.push(value);
-        }
-    });
-
-    group.appendChild(node);
-            
-    d3.range(0, 1, _dd3_precision).forEach(function (d) {
-        tweened.forEach(function (t) {
-            t.call(node, d);
-        });
-        _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
-    });
-
-    var d3_node = d3.select(node);
-    tweened.forEach(function (t, j) {
-        var ps = properties[j].split('.'),
-            p0 = ps[0],
-            p1 = typeof ps[1] !== "undefined" ? [ps[1]] : [];
-
-        t.call(node, 0);
-        startValues.push(d3_node[p0].apply(d3_node, p1));
-        t.call(node, 1);
-        endValues.push(d3_node[p0].apply(d3_node, p1));
-    });
-    _dd3_mergeRecipientsIn(_dd3_findRecipients(node), rcpts);
-
-    group.removeChild(node);
-
-    return rcpts;
-
-    */

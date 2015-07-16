@@ -17,7 +17,6 @@ function d (k, p) {
     return function (d) { return ((p && +d[k]) || d[k]); };
 };
 
-// Not exactly what I need, to improve :)
 // Basic extend
 function extend (base, extension) {
   if (arguments.length > 2) {
@@ -63,25 +62,6 @@ function log (message, sev) {
 }
 
 
-function getFullPath (el) {
-
-	var path = [];
-	var actual = "";
-	
-	do {
-		actual = el.nodeName;
-		
-		if (el.id !== "")
-			actual += "#" + el.id;
-		
-		if (!!el.classList.length)
-			actual += "." + [].join.call(el.classList, ".");
-		
-		path.unshift(actual);
-	} while ((el.nodeName.toLowerCase() != 'html') && (el = el.parentNode));
-
-	return path.join(" ");
-}
 
 function getAttr (el) {
     var obj = el.attributes, objf = {};
@@ -94,6 +74,9 @@ function getAttr (el) {
 
     return objf;
 }
+
+
+// Following functions : Keeped for memory for now, will probably be deleted as not needed
 
 function getContainingGroup(el) {
     var container;
@@ -116,7 +99,6 @@ function copyCTMFromTo(original, copy) {
     return copy;
 }
 
-// Keeped for memory for now, will probably be deleted as not needed
 
 function getRotationCenter(t) {
     var c = /rotate\([\s]*[\d.]+(?:[\s,]+([\d.]+)[\s,]+([\d.]+))*[\s,]*\)/.exec(t);
@@ -126,4 +108,25 @@ function getRotationCenter(t) {
 function setRotationCenter(t, c) {
     var t2 = t.replace(/rotate\([\s]*([\d.]+)(?:[\s,]+([\d.]+)[\s,]+([\d.]+))*[\s,]*\)/, "rotate($1," + c + ")");
     return t2;
+}
+
+
+function getFullPath(el) {
+
+    var path = [];
+    var actual = "";
+
+    do {
+        actual = el.nodeName;
+
+        if (el.id !== "")
+            actual += "#" + el.id;
+
+        if (!!el.classList.length)
+            actual += "." + [].join.call(el.classList, ".");
+
+        path.unshift(actual);
+    } while ((el.nodeName.toLowerCase() != 'html') && (el = el.parentNode));
+
+    return path.join(" ");
 }
