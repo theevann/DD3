@@ -830,6 +830,25 @@ var dd3 = (function () {
 
         _dd3.selection.prototype.remove = _dd3_watchFactory(d3.selection.prototype.remove, 'remove', 0);
 
+        var temp = d3.selection.prototype.append;
+        _dd3.selection.enter.prototype.append = _dd3.selection.prototype.append = function () {
+            var t = temp.apply(this, arguments);
+            t.each(function () {
+                if (this.parentNode.__unwatch__)
+                    _dd3_unwatch.call(this);
+            });
+            return t;
+        };
+
+        var temp3 = d3.selection.prototype.insert;
+        _dd3.selection.prototype.insert = function () {
+            var t = temp3.apply(this, arguments);
+            t.each(function () {
+                if (this.parentNode.__unwatch__)
+                    _dd3_unwatch.call(this);
+            });
+            return t;
+        };
 
         /**
         *  Function for sending data
@@ -1211,10 +1230,14 @@ var dd3 = (function () {
         };
 
         _dd3.selection.prototype.unwatch = function () {
-            this.each(function (d, i) {
-                this.__unwatch__ = true;
-            });
+            this.each(_dd3_unwatch);
             return this;
+        };
+
+        var _dd3_unwatch = function () {
+            this.__unwatch__ = true;
+            if (this.nodeName === 'g')
+                [].forEach.call(this.childNodes, function (_) { _dd3_unwatch.call(_); });
         };
 
         var _dd3_selection_createProperties = function (elem) {
