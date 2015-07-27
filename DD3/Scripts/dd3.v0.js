@@ -160,7 +160,7 @@ var dd3 = (function () {
                 peer.id = id;
 
                 p.on('connection', function (conn) {
-                    // Previous loss of data : the buffering in peer.js seems not to work anymore,
+                    // Previous loss of data : the buffering in peer.js seems not to work,
                     // and data have to be sent only when connection is opened (connection != open)
                     var r = +conn.metadata.initiator[0],
                         c = +conn.metadata.initiator[1];
@@ -549,13 +549,14 @@ var dd3 = (function () {
 
         };
 
-        var getIdFollower = function (g, id) {
-            var elems = g.selectAll_("#" + g.node().id + " > .dd3_received"),
+        var getOrderFollower = function (g, order) {
+            var elems = g.selectAll_("#" + g.node().id + " > [order]"),
                 currentFollower = "z";
 
             elems[0].forEach(function (a) {
-                if (a.id > id && a.id < currentFollower) {
-                    currentFollower = a.id;
+                var o = a.getAttribute('order')
+                if (o > order && o < currentFollower) {
+                    currentFollower = o;
                 }
             });
 
@@ -568,14 +569,14 @@ var dd3 = (function () {
                 c = false; // Whether the object was changed of group since last time
 
             if (g1.empty()) {
-                log("The group with id received doesn't exist in the dom - An group with an id must exist in every browsers !", 2);
+                log("The group with id received doesn't exist in the dom - A group with an id must exist in every browsers !", 2);
                 return;
             }
             
             data.containers.forEach(function (o) {
                 g2 = g1.select_("#" + o.id);
-                g1 = g2.empty() ? (c = true, g1.insert_('g', '#' + getIdFollower(g1, o.id))) : g2;
-                g1.attr_(o);
+                g1 = g2.empty() ? (c = true, g1.insert_('g', '[order=' + getOrderFollower(g1, o.id) + ']')) : g2;
+                g1.attr_(o).attr('order', o.id);
                 if (o.transition)
                     peer.receive(o.transition);
             });
@@ -583,7 +584,7 @@ var dd3 = (function () {
             // Here we create an absolute ordering in one group
             if (obj.empty() || c) {
                 obj.remove_();
-                obj = g1.insert_(data.name, '#' + getIdFollower(g1, data.sendId));
+                obj = g1.insert_(data.name, '[order=' + getOrderFollower(g1, data.sendId) + ']');
             }
 
             obj.attr_(data.attr)
@@ -813,12 +814,7 @@ var dd3 = (function () {
                 original.apply(this, arguments);
 
                 var e = _dd3_selection_createProperties(_dd3_selection_filterWatched(this));
-                /*
-                var groups = _dd3_selection_filterGroup(e);
-
-                if (!groups.empty())
-                    _dd3_selection_notifyChildren(groups); // Should go through all Children and send 'update' to recompute and check if resending is needed !
-                //*/
+                
                 if (!e.empty())
                     _dd3_selection_send.call(e, 'property', { 'function': funcName, 'property': arguments[0] });
 
@@ -1024,7 +1020,7 @@ var dd3 = (function () {
             var active = this.__dd3_transitions__.size() > 0, rcpt, objs;
 
             // Get current recipients
-            rcpt = _dd3_getChildren.call(this, []);
+            rcpt = _dd3_getChildrenRcpts.call(this, []);
 
             if (rcpt.length > 0) {
                 // Create the object to send
@@ -1035,7 +1031,7 @@ var dd3 = (function () {
                 _dd3_mergeRecipientsIn(rcpt, rcpts);
             }
 
-            _dd3_notify.call(this, 'updateContainer'); // If we send group as a shape, we may just want to send children.
+            _dd3_notifyChildren.call(this, 'updateContainer'); // If we send group as a shape, we may just want to send children.
             return rcpt.length;
         };
 
@@ -1230,7 +1226,7 @@ var dd3 = (function () {
             return function (elem, isElem, type, selections, args, active) {
 
                 // Bound sendId to the sent shape to be able to retrieve it later in recipients' dom
-                elem.__sendId__ = elem.__sendId__ || sendId++;
+                elem.__sendId__ = elem.__sendId__ || (elem.setAttribute('order', getSendId(sendId)), sendId++);
 
                 var objs = [],
                     obj = {
@@ -1329,19 +1325,19 @@ var dd3 = (function () {
         };
 
         var _dd3_selection_notifyChildren = function (g) {
-            g.each(_dd3_notify);
+            g.each(_dd3_notifyChildren);
         };
 
-        var _dd3_notify = function (name) {
+        var _dd3_notifyChildren = function (name) {
             if (this.nodeName === 'g')
-                [].forEach.call(this.childNodes, function (_) { _dd3_notify.call(_, name); });
+                [].forEach.call(this.childNodes, function (_) { _dd3_notifyChildren.call(_, name); });
             else
                 _dd3_selection_send.call(_dd3.select_(this), name);
         };
 
-        var _dd3_getChildren = function (array) {
+        var _dd3_getChildrenRcpts = function (array) {
             if (this.nodeName === 'g')
-                return [].forEach.call(this.childNodes, function (_) { _dd3_mergeRecipientsIn(_dd3_getChildren.call(_, array), array); }), array;
+                return [].forEach.call(this.childNodes, function (_) { _dd3_mergeRecipientsIn(_dd3_getChildrenRcpts.call(_, array), array); }), array;
             else
                 return this.__recipients__ || (log("No recipients"), []);
         };
