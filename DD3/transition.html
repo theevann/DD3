@@ -75,8 +75,8 @@ body {
             .attr("dominant-baseline", "text-before-edge")
             .attr("transform", 'translate(' + [p.left(0), p.top(0)] + ')');
 
-        var rect = svg
-            .append('rect')
+        var rectG = svg.append('g');
+        var rect = rectG.append('rect')
             .attr("id", "test");
 
 	    init2 = function () {
@@ -87,7 +87,7 @@ body {
 	        circleGroup.selectAll(".c")
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
-                .attr("r", function () { return 10 * Math.random() + 10; })
+                .attr("r", function () { return 20 * Math.random() - 10; })
                 .attr("stroke", "black")
                 .attr("fill", "#FFF");
 	    };
@@ -115,7 +115,14 @@ body {
                 .attr("fill", "rgb(29, 219, 29)")
                 .text("None");
 	    };
-            
+        
+	    startG = function (name) {
+	       rectG.transition(name)
+                .transition()
+                .duration(15000)
+                .attr('transform', 'translate(500)');
+	    };
+
 	    start1 = function (name) {
 	        t1 = rect.transition(name)
                 .duration(10000)
@@ -141,6 +148,10 @@ body {
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
                 .attr("r", function () { return 20 * Math.random() + 5; });
+	    };
+
+	    change1 = function () {
+	        rectG.attr("transform", "rotate(" + (Math.random()*5+5) + ")");
 	    };
 
         /*
