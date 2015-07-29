@@ -4,9 +4,9 @@
 
 /*
 ** TODO :
-** Notifier enfants lors de la modification d'un groupe ("updatePosition" or something) (// Faire qqch si entrée dans un browser) !
-** Transition de groupe
 ** Transition initiée dans end event.
+** Problem of inserting with string and interaction with received objects
+** THIS :  string += ':not(.dd3_received)'; won't work all the time - we need to
 ** Check what happens when what is inside a group is deleted with text or html functions !!
 */
 
@@ -550,17 +550,42 @@ var dd3 = (function () {
         };
 
         var getOrderFollower = function (g, order) {
-            var elems = g.selectAll_("#" + g.node().id + " > [order]"),
-                currentFollower = "z";
+            var s = order.split("_");
+            var elems = g.selectAll_("#" + g.node().id + " > [order^='" + s[0] + "']"),
+                follower,
+                o;
 
-            elems[0].forEach(function (a) {
-                var o = a.getAttribute('order')
-                if (o > order && o < currentFollower) {
-                    currentFollower = o;
+
+            if (!elems.empty()) {
+                s[1] = +s[1];
+
+                elems[0].some(function (a) {
+                    o = +a.getAttribute('order').split("_")[1];
+                    if (o > s[1]) {
+                        follower = o;
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (!follower) {
+                    follower = elems[0][elems[0].length - 1].nextElementSibling;
                 }
-            });
 
-            return currentFollower;
+            } else {
+                elems = g.selectAll_("#" + g.node().id + " > [order]");
+
+                elems[0].some(function (a) {
+                    var o = a.getAttribute('order');
+                    if (o > order) {
+                        follower = o;
+                        return true;
+                    }
+                    return false;
+                });
+            }
+
+            return follower;
         };
 
         var _dd3_shapeHandler = function (data) {
@@ -575,8 +600,8 @@ var dd3 = (function () {
             
             data.containers.forEach(function (o) {
                 g2 = g1.select_("#" + o.id);
-                g1 = g2.empty() ? (c = true, g1.insert_('g', '[order=' + getOrderFollower(g1, o.id) + ']')) : g2;
-                g1.attr_(o).attr('order', o.id);
+                g1 = g2.empty() ? (c = true, g1.insert_('g', "[order='" + getOrderFollower(g1, o.order) + "']")) : g2;
+                g1.attr_(o);
                 if (o.transition)
                     peer.receive(o.transition);
             });
@@ -584,7 +609,7 @@ var dd3 = (function () {
             // Here we create an absolute ordering in one group
             if (obj.empty() || c) {
                 obj.remove_();
-                obj = g1.insert_(data.name, '[order=' + getOrderFollower(g1, data.sendId) + ']');
+                obj = g1.insert_(data.name, "[order='" + getOrderFollower(g1, data.attr.order) + "']");
             }
 
             obj.attr_(data.attr)
@@ -802,6 +827,11 @@ var dd3 = (function () {
             return watcher.apply(null, [].slice.call(arguments, 1));
         };
 
+        var _dd3_watchEnterFactory = function (watcher, original, funcName) {
+            _dd3.selection.enter.prototype[funcName + '_'] = original;
+            return watcher.apply(null, [].slice.call(arguments, 1));
+        };
+
         var _dd3_watchSelectFactory = function (watcher, original, funcName) {
             _dd3[funcName + '_'] = original;
             return watcher.apply(null, [].slice.call(arguments, 1));
@@ -822,9 +852,16 @@ var dd3 = (function () {
             }
         };
 
-        var _dd3_watchAdd = function (original) {
-            return function () {
-                return original.apply(this, arguments).each(function () {
+        var _dd3_watchAdd = function (original, funcName) {
+            return function (what, beforeWhat) {
+                if (funcName === 'append') {
+                    beforeWhat = function () {
+                        var a = _dd3_selection_filterUnreceived(d3.selectAll(this.childNodes));
+                        return (a[0][a[0].length-1] && a[0][a[0].length-1].nextElementSibling);
+                    };
+                }
+
+                return _dd3.selection.prototype.insert_.call(this, what, beforeWhat).each(function () {
                     _dd3_createProperties.call(this);
                     if (this.parentNode.__unwatch__)
                         _dd3_unwatch.call(this);
@@ -837,7 +874,13 @@ var dd3 = (function () {
                 if (typeof string !== "string") return original.apply(this, arguments);
                 string += ':not(.dd3_received)';
                 return original.call(this, string);
-            }
+            };
+        };
+
+        var _dd3_watchNop = function (original) {
+            return function () {
+                return original.apply(this, arguments);
+            };
         };
 
         _dd3.selection.prototype.attr = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.attr, 'attr', 2);
@@ -854,9 +897,13 @@ var dd3 = (function () {
 
         _dd3.selection.prototype.remove = _dd3_watchFactory(_dd3_watchChange, d3.selection.prototype.remove, 'remove', 0);
 
+        _dd3.selection.enter.prototype.insert = _dd3_watchEnterFactory(_dd3_watchNop, d3.selection.enter.prototype.insert, 'insert');
+
         _dd3.selection.prototype.insert = _dd3_watchFactory(_dd3_watchAdd, d3.selection.prototype.insert, 'insert');
 
-        _dd3.selection.enter.prototype.append = _dd3.selection.prototype.append = _dd3_watchFactory(_dd3_watchAdd, d3.selection.prototype.append, 'append');
+        _dd3.selection.enter.prototype.append = _dd3_watchEnterFactory(_dd3_watchAdd, d3.selection.prototype.append, 'append');
+
+        _dd3.selection.prototype.append = _dd3_watchFactory(_dd3_watchAdd, d3.selection.prototype.append, 'append');
 
         _dd3.selection.prototype.selectAll = _dd3_watchFactory(_dd3_watchSelect, d3.selection.prototype.selectAll, 'selectAll');
 
@@ -1138,7 +1185,7 @@ var dd3 = (function () {
                 do {
                     if (g.id === "") {
                         g.__sendId__ = g.__sendId__ || sendId++;
-                        containers.unshift({ 'id': getSendId(g.__sendId__), 'transform': g.getAttribute("transform"), 'class': (g.getAttribute("class") || "") + ' dd3_received', 'transition': g.__dd3_transitions__.size() > 0 ? createTransitionsObject({ 'sendId': getSendId(g.__sendId__) }, g) : false });
+                        containers.unshift({ 'id': getSendId(g.__sendId__), 'transform': g.getAttribute("transform"), 'class': (g.getAttribute("class") || "") + ' dd3_received', 'order': g.getAttribute('order'), 'transition': g.__dd3_transitions__.size() > 0 ? createTransitionsObject({ 'sendId': getSendId(g.__sendId__) }, g) : false });
                     } else {
                         containers.unshift(g.id);
                     }
@@ -1226,7 +1273,7 @@ var dd3 = (function () {
             return function (elem, isElem, type, selections, args, active) {
 
                 // Bound sendId to the sent shape to be able to retrieve it later in recipients' dom
-                elem.__sendId__ = elem.__sendId__ || (elem.setAttribute('order', getSendId(sendId)), sendId++);
+                elem.__sendId__ = elem.__sendId__ || sendId++;
 
                 var objs = [],
                     obj = {
@@ -1282,22 +1329,15 @@ var dd3 = (function () {
             return elem;
         };
 
-        var _dd3_selection_deleteProperties = function (elem) {
-            elem.each(function () { _dd3_deleteProperties(this); });
-            return elem;
-        };
-
         var _dd3_createProperties = function () {
-            this.__recipients__ = this.__recipients__ || [];
-            this.__dd3_transitions__ = this.__dd3_transitions__ || d3.map();
+            if (!this.__recipients__) {
+                this.__recipients__ = [];
+                this.__dd3_transitions__ = d3.map();
+                this.setAttribute('order', getOrder(this));
+            }
 
             if (this.nodeName === 'g')
                 [].forEach.call(this.childNodes, function (_) { _dd3_createProperties.call(_); });
-        };
-
-        var _dd3_deleteProperties = function (elem) {
-            delete elem.__recipients__;
-            delete elem.__dd3_transitions__;
         };
 
         var _dd3_selection_filterWatched = function (e) {
@@ -1308,7 +1348,7 @@ var dd3 = (function () {
 
         var _dd3_selection_filterUnreceived = function (e) {
             return e.filter(function (d, i) {
-                return ([].indexOf.call(this.classList, 'dd3_received') < 0);
+                return ([].indexOf.call(this.classList || [], 'dd3_received') < 0);
             })
         };
 
@@ -1340,6 +1380,40 @@ var dd3 = (function () {
                 return [].forEach.call(this.childNodes, function (_) { _dd3_mergeRecipientsIn(_dd3_getChildrenRcpts.call(_, array), array); }), array;
             else
                 return this.__recipients__ || (log("No recipients"), []);
+        };
+
+        var getOrder = function (elem) {
+            var prev = elem, prevOrder = 0, next = elem, nextOrder, o = browser.row + '-' + browser.column;
+
+            if (prev = getPreviousElemOrdered(elem)) {
+                var s = prev.getAttribute("order").split("_")
+                if (s[0] === o)
+                    prevOrder = +s[1];
+            }
+
+            if (next = getNextElemOrdered(elem)) {
+                var s = next.getAttribute("order").split("_")
+                if (s[0] === o)
+                    nextOrder = +s[1];
+            }
+
+            o += "_" + (nextOrder ? (prevOrder + nextOrder) / 2 : prevOrder + 1);
+
+            return o;
+        };
+
+        var getPreviousElemOrdered = function (elem) {
+            while (elem = elem.previousElementSibling) {
+                if (elem.getAttribute("order"))
+                    return elem;
+            }
+        };
+
+        var getNextElemOrdered = function (elem) {
+            while (elem = elem.nextElementSibling) {
+                if (elem.getAttribute("order"))
+                    return elem;
+            }
         };
 
         /**
@@ -1537,7 +1611,7 @@ var dd3 = (function () {
          * Create the svg and provide it for use
          */
 
-        _dd3.svgNode = d3.select("body").append("svg");
+        _dd3.svgNode = _dd3.select_("body").append_("svg");
 
         _dd3.svgCanvas = _dd3.svgNode
 		    .attr_("width", browser.width)
