@@ -562,7 +562,7 @@ var dd3 = (function () {
                 elems[0].some(function (a) {
                     o = +a.getAttribute('order').split("_")[1];
                     if (o > s[1]) {
-                        follower = o;
+                        follower = a;
                         return true;
                     }
                     return false;
@@ -578,7 +578,7 @@ var dd3 = (function () {
                 elems[0].some(function (a) {
                     var o = a.getAttribute('order');
                     if (o > order) {
-                        follower = o;
+                        follower = a;
                         return true;
                     }
                     return false;
@@ -600,7 +600,7 @@ var dd3 = (function () {
             
             data.containers.forEach(function (o) {
                 g2 = g1.select_("#" + o.id);
-                g1 = g2.empty() ? (c = true, g1.insert_('g', "[order='" + getOrderFollower(g1, o.order) + "']")) : g2;
+                g1 = g2.empty() ? (c = true, g1.insert_('g', function () { return getOrderFollower(g1, o.order); })) : g2;
                 g1.attr_(o);
                 if (o.transition)
                     peer.receive(o.transition);
@@ -609,7 +609,7 @@ var dd3 = (function () {
             // Here we create an absolute ordering in one group
             if (obj.empty() || c) {
                 obj.remove_();
-                obj = g1.insert_(data.name, "[order='" + getOrderFollower(g1, data.attr.order) + "']");
+                obj = g1.insert_(data.name, function () { return getOrderFollower(g1, data.attr.order); });
             }
 
             obj.attr_(data.attr)
