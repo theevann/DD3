@@ -65,7 +65,8 @@
 
 	    xRange.domain(xDomain);
 
-	    svg.append("g")
+        svg.append("g")
+          .unwatch()
 	      .attr("class", "x axis")
 	      .attr("transform", "translate(" + [0, dd3.cave().svgHeight] + ")")
 	      .call(xAxis)
@@ -76,7 +77,8 @@
 	      .style("text-anchor", "middle")
 	      .text("Countries");
 
-	    svg.append("g")
+        svg.append("g")
+          .unwatch()
 	      .attr("class", "y axis")
 	      .attr("transform", "translate(" + [0, 0] + ")")
 	      .call(yAxis)
@@ -88,7 +90,7 @@
 	      .style("text-anchor", "end")
 	      .text("GDP");
 
-	    svg.append("g")
+        svg.append("g")
           .attr("id", "rect")
           .selectAll('rect')
           .data(barData)
@@ -104,8 +106,7 @@
           })
           .attr('fill', 'steelblue')
           .attr('stroke', 'black')
-          .attr('stroke-width', '2')
-          .watch();
+          .attr('stroke-width', '2');
 
         /*
 	    var t = svg.append("g")

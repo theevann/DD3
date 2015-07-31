@@ -87,6 +87,7 @@
   <ItemGroup>
     <Content Include="all.html" />
     <Content Include="allGraph16.html" />
+    <Content Include="allTransition2.html" />
     <Content Include="allTransition.html" />
     <Content Include="allPie.html" />
     <Content Include="allGraph.html">

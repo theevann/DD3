@@ -81,13 +81,14 @@ body {
 
 	    init2 = function () {
 	        circleGroup.selectAll(".c").data(d3.range(100)).enter()
+                .append('g')
                 .append('circle')
                 .attr("class", "c");
 
 	        circleGroup.selectAll(".c")
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
-                .attr("r", function () { return 20 * Math.random() - 10; })
+                .attr("r", function () { return 10 * Math.random() + 10; })
                 .attr("stroke", "black")
                 .attr("fill", "#FFF");
 	    };
@@ -100,7 +101,7 @@ body {
 	        circleGroup.selectAll(".c")
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
-                .attr("r", function () { return 10 * Math.random() + 10; })
+                .attr("r", function () { return 20 * Math.random() + 20; })
                 .attr("stroke", "black")
                 .attr("fill", "#FFF");
 	    };
@@ -118,7 +119,6 @@ body {
         
 	    startG = function (name) {
 	       rectG.transition(name)
-                .transition()
                 .duration(15000)
                 .attr('transform', 'translate(500)');
 	    };
@@ -147,21 +147,21 @@ body {
                 .precision(0.05)
                 .attr("cx", function () { return width * Math.random(); })
                 .attr("cy", function () { return height * Math.random(); })
-                .attr("r", function () { return 20 * Math.random() + 5; });
+                .attr("r", function () { return 40 * Math.random() + 50; });
 	    };
 
 	    change1 = function () {
-	        rectG.attr("transform", "rotate(" + (Math.random()*5+5) + ")");
+	        rectG.attr("transform", "rotate(" + (20 * Math.random() - 10) + ")");
 	    };
 
-        /*
+        //*
 	    init3();
 	    var f = function () {
 	        start3();
 	        setTimeout(f, 21000);
 	    };
 	    dd3.synchronize(f, 5000);
-        */
+        //*/
     });
     </script>
 </body>
